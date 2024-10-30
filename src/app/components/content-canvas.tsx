@@ -1,25 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import TopBar from './top-bar';
 import SectionCard from './section-card';
-
-interface Section {
-  id: string;
-  title: string;
-  content: string;
-  purpose: string;
-  strength: number;
-  isEditing: boolean;
-  isGenerating: boolean;
-  selectedSources: any[];
-}
+import { Section } from '@/lib/ai/types'; // Import the Section type
 
 interface ContentCanvasProps {
   sections: Section[];
   activeSection: string | null;
-  onSectionUpdate: (sectionId: string, data: any) => void;
+  onSectionUpdate: (sectionId: string, data: Partial<Section>) => void;
   onSectionDelete: (sectionId: string) => void;
   onSectionAdd: () => void;
   onSectionRegenerate: (sectionId: string) => void;
@@ -37,7 +27,39 @@ const ContentCanvas: React.FC<ContentCanvasProps> = ({
   onPurposeChange,
   onTitleChange
 }) => {
-    const handleDragStart = (e: React.DragEvent<Element>, sectionId: string) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerateSections = async (title: string, purpose: string) => {
+    try {
+      setIsGenerating(true);
+      const response = await fetch('/api/generate-sections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title, purpose }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate sections');
+      }
+
+      const data = await response.json();
+      
+      // Replace existing sections with new ones
+      // You might want to confirm with user before replacing or merge instead
+      data.sections.forEach((section: Section) => {
+        onSectionUpdate(section.id, section);
+      });
+    } catch (error) {
+      console.error('Error generating sections:', error);
+      // You might want to show an error message to the user here
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent<Element>, sectionId: string) => {
         e.dataTransfer.setData('text/plain', sectionId);
       };
     
@@ -54,14 +76,6 @@ const ContentCanvas: React.FC<ContentCanvasProps> = ({
       };
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50">
-      {/* Top Bar */}
-      <TopBar 
-        documentTitle="New Document"
-        documentPurpose="Describe your document's purpose, target audience, and key requirements. Be specific about tone and desired outcomes."
-        onPurposeChange={onPurposeChange}
-        onTitleChange={onTitleChange}
-      />
-
       {/* Sections Area */}
       <div className="flex-1 overflow-auto">
         <div className="p-6 space-y-4">
@@ -79,6 +93,7 @@ const ContentCanvas: React.FC<ContentCanvasProps> = ({
                 onDelete={onSectionDelete}
                 onRegenerate={onSectionRegenerate}
                 onDragStart={handleDragStart}
+                onTitleChange={onTitleChange}
               />
             </div>
           ))}
