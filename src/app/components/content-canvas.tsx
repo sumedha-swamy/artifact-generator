@@ -55,9 +55,9 @@ const ContentCanvas: React.FC<ContentCanvasProps> = ({
             {sections.map((section) => (
               <SectionCard
                 key={section.id}
-                section={{ ...section, sourceOption: section.sourceOption || 'model' }}
-                availableResources={availableResources}
+                section={section}
                 isActive={activeSection === section.id}
+                availableResources={availableResources}
                 onUpdate={onSectionUpdate}
                 onDelete={onSectionDelete}
                 onRegenerate={onSectionRegenerate}

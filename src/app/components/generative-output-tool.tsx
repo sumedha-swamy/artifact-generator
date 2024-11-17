@@ -88,10 +88,12 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
 
   const handleSectionRegenerate = async (sectionId: string) => {
     try {
-      // Set isGenerating to true for the specific section
-      setSections(prevSections => prevSections.map(s => 
-        s.id === sectionId ? { ...s, isGenerating: true } : s
-      ));
+      setSections(prevSections => {
+        const updatedSections = prevSections.map(s => 
+          s.id === sectionId ? { ...s, isGenerating: true } : s
+        );
+        return updatedSections;
+      });
 
       const section = sections.find(s => s.id === sectionId);
       if (!section) return;
@@ -126,23 +128,24 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
       const revisions = section.revisions || [];
       const newRevisions = [...revisions, { content: data.content, description: section.description }];
 
-      // Update section with new content and revisions, and set isGenerating to false
-      setSections(prevSections => prevSections.map(s => 
-        s.id === sectionId ? {
-          ...s,
-          content: data.content,
-          description: section.description,
-          strength: data.strength,
-          isGenerating: false,
-          revisions: newRevisions,
-          currentRevisionIndex: newRevisions.length - 1
-        } : s
-      ));
+      setSections(prevSections => {
+        const updatedSections = prevSections.map(s => 
+          s.id === sectionId ? {
+            ...s,
+            content: data.content,
+            description: section.description,
+            strength: data.strength,
+            isGenerating: false,
+            revisions: newRevisions,
+            currentRevisionIndex: newRevisions.length - 1
+          } : s
+        );
+        return updatedSections;
+      });
 
       return data;
     } catch (error) {
       console.error('Error regenerating section:', error);
-      // Ensure isGenerating is set to false in case of error
       setSections(prevSections => prevSections.map(s => 
         s.id === sectionId ? { ...s, isGenerating: false } : s
       ));
@@ -152,8 +155,10 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
 
   const handleGenerateAllContent = async () => {
     try {
-      // Use Promise.all to wait for all sections to be regenerated
-      await Promise.all(sections.map(section => handleSectionRegenerate(section.id)));
+      // Iterate over each section and regenerate them one by one
+      for (const section of sections) {
+        await handleSectionRegenerate(section.id);
+      }
     } catch (error) {
       console.error('Error generating all content:', error);
     }
