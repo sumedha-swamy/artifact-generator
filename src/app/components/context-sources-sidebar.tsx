@@ -1,54 +1,138 @@
 'use client';
 
-import React from 'react';
-import { Plus, FileText, Link, Image, Music, Video, Layout } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, FileText, Link, Trash, ChevronDown } from 'lucide-react';
 
 interface Source {
   id: number;
-  type: string;
   name: string;
-  icon: any; // Using any for now, but ideally should use LucideIcon
+  path: string;
+  selected?: boolean;
 }
 
 interface ContextSourcesSidebarProps {
   onTemplateClick: () => void;
+  onSelectResources: (selectedResources: Source[]) => void;
 }
 
-const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onTemplateClick }) => {
-  const sources = [
-    { id: 1, type: 'document', name: 'Document1.pdf', icon: FileText },
-    { id: 2, type: 'link', name: 'Website Link', icon: Link },
-    { id: 3, type: 'image', name: 'Image1.png', icon: Image },
-    { id: 4, type: 'video', name: 'Video1.mp4', icon: Video },
-    { id: 5, type: 'audio', name: 'Audio1.mp3', icon: Music }
-  ];
+const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectResources }) => {
+  const [sources, setSources] = useState<Source[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, source: Source) => {
-    e.dataTransfer.setData('application/json', JSON.stringify(source));
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const newSource = {
+        id: Date.now(),
+        name: files[0].name,
+        path: URL.createObjectURL(files[0])
+      };
+      setSources([...sources, newSource]);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newSource = {
+        id: Date.now(),
+        name: files[0].name,
+        path: URL.createObjectURL(files[0])
+      };
+      setSources([...sources, newSource]);
+    }
+  };
+
+  const handleAddUrl = () => {
+    if (urlInput.trim()) {
+      const newSource = {
+        id: Date.now(),
+        name: urlInput,
+        path: urlInput
+      };
+      setSources([...sources, newSource]);
+      setUrlInput('');
+      setShowUrlInput(false);
+    }
+  };
+
+  const handleDelete = (id: number) => {
+    setSources(sources.filter(source => source.id !== id));
+  };
+
+  const handleResourceSelect = (selectedId: number) => {
+    const updatedSources = sources.map(source => 
+      source.id === selectedId ? { ...source, selected: !source.selected } : source
+    );
+    setSources(updatedSources);
+    onSelectResources(updatedSources.filter(source => source.selected));
   };
 
   return (
-    <div className="w-64 flex-shrink-0 bg-white border-r border-gray-200 overflow-y-auto">
+    <div className="w-64 flex-shrink-0 bg-white border-r border-gray-300 overflow-y-auto">
       <div className="p-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Context Sources</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Resources</h2>
         <div className="space-y-2">
-          <button className="w-full bg-blue-600 text-white rounded-lg p-2 flex items-center 
-                           justify-center gap-2 hover:bg-blue-700 transition-colors">
-            <Plus size={20} /> Add Source
-          </button>
-          <button 
-            className="w-full border border-gray-200 text-gray-700 rounded-lg p-2 
-                     flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
-            onClick={onTemplateClick}
+          <div className="flex">
+            <label className="flex-grow bg-blue-600 text-white rounded-l-lg p-2 flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors cursor-pointer">
+              <Plus size={20} /> Add Resource
+              <input type="file" className="hidden" onChange={handleFileSelect} />
+            </label>
+            <button
+              className="bg-blue-600 text-white rounded-r-lg p-2 flex items-center justify-center hover:bg-blue-700 transition-colors"
+              onClick={() => setShowUrlInput(!showUrlInput)}
+            >
+              <ChevronDown size={16} />
+            </button>
+          </div>
+          {showUrlInput && (
+            <div className="mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+              <input
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                placeholder="Enter URL"
+                className="w-full p-2 border-b border-gray-300"
+              />
+              <button
+                onClick={handleAddUrl}
+                className="w-full bg-blue-600 text-white rounded-b-lg p-2 hover:bg-blue-700 transition-colors"
+              >
+                Add URL
+              </button>
+            </div>
+          )}
+          <label
+            htmlFor="fileInput"
+            className={`block mt-4 p-4 bg-blue-50 rounded-lg cursor-pointer ${isDragOver ? 'border-2 border-blue-500' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
           >
-            <Layout size={20} /> Use Template
-          </button>
+            <h3 className="text-sm font-medium text-blue-700 mb-1">Add Resources</h3>
+            <p className="text-sm text-blue-600">
+              Drag and drop files here, or click to browse.
+            </p>
+          </label>
         </div>
       </div>
 
       <div className="space-y-4">
         <div className="flex items-center justify-between text-sm text-gray-500 px-2">
-          <span>Sources</span>
+          <span>Resources</span>
           <span>{sources.length} items</span>
         </div>
         
@@ -56,45 +140,18 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onTemplat
           {sources.map(source => (
             <div
               key={source.id}
-              className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-move group text-gray-600"
-              draggable
-              onDragStart={(e) => handleDragStart(e, source)}
+              className={`flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer group text-gray-600 ${source.selected ? 'bg-blue-100' : ''}`}
+              onClick={() => handleResourceSelect(source.id)}
             >
-              <source.icon size={20} className="text-gray-600" />
-              <span className="flex-1 truncate">{source.name}</span>
+              <FileText size={20} className="text-gray-600" />
+              <span className="flex-1 truncate" title={source.path}>{source.name}</span>
               <div className="hidden group-hover:flex items-center gap-1">
-                <button className="p-1 hover:bg-gray-200 rounded">
-                  <FileText size={14} className="text-gray-500" />
-                </button>
-                <button className="p-1 hover:bg-gray-200 rounded">
-                  <Link size={14} className="text-gray-500" />
+                <button className="p-1 hover:bg-gray-200 rounded" onClick={() => handleDelete(source.id)}>
+                  <Trash size={14} className="text-gray-500" />
                 </button>
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      <div className="mt-6 space-y-2">
-        <h3 className="text-sm font-medium text-gray-800 mb-2">Quick Actions</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <button className="p-2 text-sm border rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 text-gray-600">
-            <Plus size={16} />
-            New Folder
-          </button>
-          <button className="p-2 text-sm border rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 text-gray-600">
-            <Link size={16} />
-            Add URL
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <div className="p-4 bg-blue-50 rounded-lg">
-          <h3 className="text-sm font-medium text-blue-700 mb-1">Need Help?</h3>
-          <p className="text-sm text-blue-600">
-            Drop files here or click Add Source to upload your context materials.
-          </p>
         </div>
       </div>
     </div>

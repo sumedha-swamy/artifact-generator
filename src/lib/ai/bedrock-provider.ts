@@ -1,4 +1,4 @@
-import { AIProvider, Section } from './types';
+import { AIProvider, Section, SectionGenerationRequest, SectionGenerationResponse } from './types';
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
 export class BedrockProvider implements AIProvider {
@@ -46,5 +46,9 @@ export class BedrockProvider implements AIProvider {
       console.error('Error generating sections with Bedrock:', error);
       throw error;
     }
+  }
+
+  async generateSection(documentTitle: string, documentPurpose: string, sectionInfo: SectionGenerationRequest): Promise<SectionGenerationResponse> {
+    throw new Error('Method not implemented.');
   }
 }

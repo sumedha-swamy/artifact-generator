@@ -1,15 +1,13 @@
-import { AIProvider } from './types';
+import { AIProvider, AIProviderType } from './types';
 import { OpenAIProvider } from './openai-provider';
 import { AnthropicProvider } from './anthropic-provider';
 import { BedrockProvider } from './bedrock-provider';
-
-export type AIProviderType = 'openai' | 'anthropic' | 'bedrock';
 
 export class AIProviderFactory {
   static createProvider(type: AIProviderType, config: Record<string, string>): AIProvider {
     switch (type) {
       case 'openai':
-        return new OpenAIProvider(config.apiKey);
+        return new OpenAIProvider(config.apiKey, config.modelId);
       case 'anthropic':
         return new AnthropicProvider(config.apiKey);
       case 'bedrock':

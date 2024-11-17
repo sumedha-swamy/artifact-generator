@@ -4,13 +4,17 @@ export interface Section {
   id: string;
   title: string;
   content: string;
-  purpose: string;
+  description: string;
   strength: number;
   isEditing: boolean;
   isGenerating: boolean;
   selectedSources: string[];
-  instructions: string;
+  sourceOption: string;
+  revisions: Array<{ content: string; description: string }>;
+  currentRevisionIndex?: number;
 }
+
+
 
 export interface Template {
   id: number;
@@ -27,4 +31,11 @@ export interface Source {
   name: string;
   references?: number;
   icon?: LucideIcon;
+}
+
+export interface Resource {
+  id: number;
+  name: string;
+  path: string;
+  selected?: boolean;
 }

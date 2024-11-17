@@ -4,11 +4,12 @@ import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import TopBar from './top-bar';
 import SectionCard from './section-card';
-import { Section } from '@/lib/ai/types'; // Import the Section type
+import { Section, Resource } from '@/app/lib/types'; 
 
 interface ContentCanvasProps {
   sections: Section[];
   activeSection: string | null;
+  availableResources: Resource[];
   onSectionUpdate: (sectionId: string, data: Partial<Section>) => void;
   onSectionDelete: (sectionId: string) => void;
   onSectionAdd: () => void;
@@ -20,6 +21,7 @@ interface ContentCanvasProps {
 const ContentCanvas: React.FC<ContentCanvasProps> = ({ 
   sections,
   activeSection,
+  availableResources,
   onSectionUpdate,
   onSectionDelete,
   onSectionAdd,
@@ -27,37 +29,6 @@ const ContentCanvas: React.FC<ContentCanvasProps> = ({
   onPurposeChange,
   onTitleChange
 }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const handleGenerateSections = async (title: string, purpose: string) => {
-    try {
-      setIsGenerating(true);
-      const response = await fetch('/api/generate-sections', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title, purpose }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate sections');
-      }
-
-      const data = await response.json();
-      
-      // Replace existing sections with new ones
-      // You might want to confirm with user before replacing or merge instead
-      data.sections.forEach((section: Section) => {
-        onSectionUpdate(section.id, section);
-      });
-    } catch (error) {
-      console.error('Error generating sections:', error);
-      // You might want to show an error message to the user here
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const handleDragStart = (e: React.DragEvent<Element>, sectionId: string) => {
         e.dataTransfer.setData('text/plain', sectionId);
@@ -80,23 +51,23 @@ const ContentCanvas: React.FC<ContentCanvasProps> = ({
       <div className="flex-1 overflow-auto">
         <div className="p-6 space-y-4">
           {/* Section Cards */}
-          {sections.map((section) => (
-            <div
-              key={section.id}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, section.id)}
-            >
+          <div className="flex flex-col gap-4">
+            {sections.map((section) => (
               <SectionCard
-                section={section}
+                key={section.id}
+                section={{ ...section, sourceOption: section.sourceOption || 'model' }}
+                availableResources={availableResources}
                 isActive={activeSection === section.id}
                 onUpdate={onSectionUpdate}
                 onDelete={onSectionDelete}
                 onRegenerate={onSectionRegenerate}
                 onDragStart={handleDragStart}
                 onTitleChange={onTitleChange}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, section.id)}
               />
-            </div>
-          ))}
+            ))}
+          </div>
           
           {/* Add Section Button */}
           <button 

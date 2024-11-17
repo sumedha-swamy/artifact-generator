@@ -6,7 +6,7 @@ import TopBar from './top-bar';
 import EvaluationSidebar from './evaluation-sidebar';
 import ContentCanvas from './content-canvas';
 import TemplateModal from './template-modal';
-import { Section } from '@/lib/ai/types';
+import { Section, Resource } from '@/app/lib/types';
 
 const GenerativeOutputTool: React.FC = () => {
   // State management
@@ -15,11 +15,13 @@ const GenerativeOutputTool: React.FC = () => {
       id: '1', 
       title: 'Section 1', 
       content: '', 
-      strength: 85, 
+      strength: 0, 
       description: 'Introduction',
       isEditing: false,
       isGenerating: false,
-      selectedSources: ['Document1.pdf', 'Website Link'],
+      selectedSources: [],
+      sourceOption: 'model',
+      revisions: [],
     }
   ]);
   
@@ -29,6 +31,20 @@ const GenerativeOutputTool: React.FC = () => {
   const [documentTitle, setDocumentTitle] = useState('New Document');
   const [documentPurpose, setDocumentPurpose] = useState('');
   const [isGeneratingSections, setIsGeneratingSections] = useState(false);
+  const [selectedResources, setSelectedResources] = useState<Record<string, number[]>>({});
+  const [resources, setResources] = useState<Resource[]>([]);
+
+const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
+  setSelectedResources(prev => ({
+    ...prev,
+    [sectionId]: resourceIds
+  }));
+};
+
+ // Add this handler to receive resources from ContextSourcesSidebar
+ const handleResourcesUpdate = (updatedResources: Resource[]) => {
+  setResources(updatedResources);
+};
   
   // Active sources for the evaluation sidebar
   const activeSources = [
@@ -64,29 +80,40 @@ const GenerativeOutputTool: React.FC = () => {
       isEditing: false,
       isGenerating: false,
       selectedSources: [],
+      sourceOption: 'model',
+      revisions: [],
     };
     setSections([...sections, newSection]);
   };
 
   const handleSectionRegenerate = async (sectionId: string) => {
     try {
-      // Set the section to generating state
-      handleSectionUpdate(sectionId, { isGenerating: true });
+      // Set isGenerating to true for the specific section
+      setSections(prevSections => prevSections.map(s => 
+        s.id === sectionId ? { ...s, isGenerating: true } : s
+      ));
 
       const section = sections.find(s => s.id === sectionId);
       if (!section) return;
 
-      // Call the API to regenerate the section
+      const otherSections = sections
+        .filter(s => s.id !== sectionId)
+        .map(s => ({
+          title: s.title,
+          content: s.content
+        }));
+
       const response = await fetch('/api/generate-sections', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: documentTitle,
-          purpose: documentPurpose,
+          documentTitle,
+          documentPurpose,
           sectionTitle: section.title,
-          sectionDescription: section.description
+          sectionDescription: section.description,
+          otherSections
         }),
       });
 
@@ -95,46 +122,75 @@ const GenerativeOutputTool: React.FC = () => {
       }
 
       const data = await response.json();
-      const newSection = data.sections[0]; // Assume we get back one section
 
-      // Update the section with the new content
-      handleSectionUpdate(sectionId, {
-        ...newSection,
-        isGenerating: false,
-        strength: Math.floor(Math.random() * 30) + 70, // You might want to get this from the AI
-      });
+      const revisions = section.revisions || [];
+      const newRevisions = [...revisions, { content: data.content, description: section.description }];
+
+      // Update section with new content and revisions, and set isGenerating to false
+      setSections(prevSections => prevSections.map(s => 
+        s.id === sectionId ? {
+          ...s,
+          content: data.content,
+          description: section.description,
+          strength: data.strength,
+          isGenerating: false,
+          revisions: newRevisions,
+          currentRevisionIndex: newRevisions.length - 1
+        } : s
+      ));
+
+      return data;
     } catch (error) {
       console.error('Error regenerating section:', error);
-      handleSectionUpdate(sectionId, { isGenerating: false });
+      // Ensure isGenerating is set to false in case of error
+      setSections(prevSections => prevSections.map(s => 
+        s.id === sectionId ? { ...s, isGenerating: false } : s
+      ));
+      throw error;
+    }
+  };
+
+  const handleGenerateAllContent = async () => {
+    try {
+      // Use Promise.all to wait for all sections to be regenerated
+      await Promise.all(sections.map(section => handleSectionRegenerate(section.id)));
+    } catch (error) {
+      console.error('Error generating all content:', error);
     }
   };
 
   // Handle AI section generation
-  const handleGenerateSections = async (title: string, purpose: string) => {
-    try {
-      setIsGeneratingSections(true);
-      const response = await fetch('/api/generate-sections', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title, purpose }),
-      });
+const handleGenerateSections = async (title: string, purpose: string) => {
+  try {
+    setIsGeneratingSections(true);
+    const response = await fetch('/api/generate-sections', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        title, 
+        purpose 
+      }),
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate sections');
-      }
-
-      const data = await response.json();
-      setSections(data.sections);
-      setDocumentTitle(title);
-      setDocumentPurpose(purpose);
-    } catch (error) {
-      console.error('Error generating sections:', error);
-    } finally {
-      setIsGeneratingSections(false);
+    if (!response.ok) {
+      throw new Error('Failed to generate sections');
     }
-  };
+
+    const data = await response.json();
+    setSections(data.sections);
+    setDocumentTitle(title);
+    setDocumentPurpose(purpose);
+
+
+  } catch (error) {
+    console.error('Error generating sections:', error);
+  } finally {
+    setIsGeneratingSections(false);
+  }
+};
+  
 
   // Template handlers
   const handleTemplateSelect = (templateId: number) => {
@@ -159,6 +215,8 @@ const GenerativeOutputTool: React.FC = () => {
       isEditing: false,
       isGenerating: false,
       selectedSources: [],
+      sourceOption: 'model',
+      revisions: [],
     }));
 
     setSections(newSections);
@@ -171,35 +229,46 @@ const GenerativeOutputTool: React.FC = () => {
     sections.reduce((acc, section) => acc + section.strength, 0) / sections.length
   );
 
+  const handleSelectResources = (selectedResources: any) => {
+    // Implement the logic for handling selected resources
+  };
+
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden bg-gray-50">
+    <div className="flex flex-col h-screen w-full overflow-hidden bg-gray-100">
       {/* Top Bar */}
-      <TopBar
-        documentTitle={documentTitle}
-        documentPurpose={documentPurpose}
-        onPurposeChange={setDocumentPurpose}
-        onTitleChange={setDocumentTitle}
-        onGenerateSections={handleGenerateSections}
-        isGenerating={isGeneratingSections}
-      />
+      <div className="w-full bg-white border-b border-gray-200">
+        <TopBar
+          documentTitle={documentTitle}
+          documentPurpose={documentPurpose}
+          onPurposeChange={setDocumentPurpose}
+          onTitleChange={setDocumentTitle}
+          onGenerateSections={handleGenerateSections}
+          isGenerating={isGeneratingSections}
+          onGenerateAllContent={handleGenerateAllContent}
+        />
+      </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
         <ContextSourcesSidebar 
           onTemplateClick={() => setShowTemplateModal(true)}
+          onSelectResources={handleResourcesUpdate}
         />
 
         {/* Main Content Area */}
-        <ContentCanvas
-          sections={sections}
-          activeSection={activeSection}
-          onSectionUpdate={handleSectionUpdate}
-          onSectionDelete={handleSectionDelete}
-          onSectionAdd={handleSectionAdd}
-          onSectionRegenerate={handleSectionRegenerate}
-          onPurposeChange={setDocumentPurpose}
-          onTitleChange={setDocumentTitle}
-        />
+        <div className="flex-1 overflow-y-auto p-6 bg-white">
+          <ContentCanvas
+            sections={sections}
+            activeSection={activeSection}
+            availableResources={resources}
+            onSectionUpdate={handleSectionUpdate}
+            onSectionDelete={handleSectionDelete}
+            onSectionAdd={handleSectionAdd}
+            onSectionRegenerate={handleSectionRegenerate}
+            onPurposeChange={setDocumentPurpose}
+            onTitleChange={setDocumentTitle}
+          />
+        </div>
 
         {/* Right Sidebar */}
         <EvaluationSidebar
