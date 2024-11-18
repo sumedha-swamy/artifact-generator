@@ -10,22 +10,8 @@ import { Section, Resource } from '@/app/lib/types';
 
 const GenerativeOutputTool: React.FC = () => {
   // State management
-  const [sections, setSections] = useState<Section[]>([
-    { 
-      id: '1', 
-      title: 'Section 1', 
-      content: '', 
-      strength: 0, 
-      description: 'Introduction',
-      isEditing: false,
-      isGenerating: false,
-      selectedSources: [],
-      sourceOption: 'model',
-      revisions: [],
-    }
-  ]);
-  
-  const [activeSection, setActiveSection] = useState('1');
+  const [sections, setSections] = useState<Section[]>([]); 
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null);
   const [documentTitle, setDocumentTitle] = useState('New Document');
@@ -33,6 +19,7 @@ const GenerativeOutputTool: React.FC = () => {
   const [isGeneratingSections, setIsGeneratingSections] = useState(false);
   const [selectedResources, setSelectedResources] = useState<Record<string, number[]>>({});
   const [resources, setResources] = useState<Resource[]>([]);
+  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
 
 const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
   setSelectedResources(prev => ({
@@ -70,7 +57,7 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
   };
 
   const handleSectionAdd = () => {
-    const newId = (Math.max(...sections.map(s => parseInt(s.id))) + 1).toString();
+    const newId = sections.length === 0 ? '1' : (Math.max(...sections.map(s => parseInt(s.id))) + 1).toString();
     const newSection: Section = {
       id: newId,
       title: `Section ${newId}`,
@@ -86,25 +73,30 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
     setSections([...sections, newSection]);
   };
 
-  const handleSectionRegenerate = async (sectionId: string) => {
+  const handleSectionRegenerate = async (sectionId: string, currentSections?: Section[]) => {
     try {
-      setSections(prevSections => {
-        const updatedSections = prevSections.map(s => 
-          s.id === sectionId ? { ...s, isGenerating: true } : s
-        );
-        return updatedSections;
-      });
-
-      const section = sections.find(s => s.id === sectionId);
-      if (!section) return;
-
-      const otherSections = sections
+      // Use the passed sections if available, otherwise use state
+      const sectionsToUse = currentSections || sections;
+      
+      // Update isGenerating state first
+      setSections(prevSections => 
+        prevSections.map(s => s.id === sectionId ? { ...s, isGenerating: true } : s)
+      );
+  
+      // Use sectionsToUse instead of sections state
+      const section = sectionsToUse.find(s => s.id === sectionId);
+      if (!section) {
+        console.error('Section not found:', sectionId);
+        return;
+      }
+  
+      const otherSections = sectionsToUse
         .filter(s => s.id !== sectionId)
         .map(s => ({
           title: s.title,
           content: s.content
         }));
-
+  
       const response = await fetch('/api/generate-sections', {
         method: 'POST',
         headers: {
@@ -118,83 +110,110 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
           otherSections
         }),
       });
-
+  
       if (!response.ok) {
         throw new Error('Failed to regenerate section');
       }
-
+  
       const data = await response.json();
-
-      const revisions = section.revisions || [];
-      const newRevisions = [...revisions, { content: data.content, description: section.description }];
-
+  
+      // Update section with new content
       setSections(prevSections => {
-        const updatedSections = prevSections.map(s => 
-          s.id === sectionId ? {
-            ...s,
-            content: data.content,
-            description: section.description,
-            strength: data.strength,
-            isGenerating: false,
-            revisions: newRevisions,
-            currentRevisionIndex: newRevisions.length - 1
-          } : s
-        );
-        return updatedSections;
+        return prevSections.map(s => {
+          if (s.id === sectionId) {
+            const revisions = [...(s.revisions || []), { content: data.content, description: s.description }];
+            return {
+              ...s,
+              content: data.content,
+              strength: data.strength,
+              isGenerating: false,
+              revisions,
+              currentRevisionIndex: revisions.length - 1
+            };
+          }
+          return s;
+        });
       });
-
+  
       return data;
     } catch (error) {
       console.error('Error regenerating section:', error);
-      setSections(prevSections => prevSections.map(s => 
-        s.id === sectionId ? { ...s, isGenerating: false } : s
-      ));
+      setSections(prevSections => 
+        prevSections.map(s => s.id === sectionId ? { ...s, isGenerating: false } : s)
+      );
       throw error;
     }
   };
 
+
   const handleGenerateAllContent = async () => {
     try {
-      // Iterate over each section and regenerate them one by one
-      for (const section of sections) {
-        await handleSectionRegenerate(section.id);
+      setIsGeneratingAll(true);
+      
+      // Generate sections first if none exist
+      let sectionsToGenerate = sections;
+      if (!sections || sections.length === 0) {
+        sectionsToGenerate = await handleGenerateSections(documentTitle, documentPurpose);
       }
+      
+      // Pass the sectionsToGenerate to handleSectionRegenerate
+      const regeneratePromises = sectionsToGenerate.map(section => 
+        handleSectionRegenerate(section.id, sectionsToGenerate)
+      );
+      
+      await Promise.all(regeneratePromises);
     } catch (error) {
       console.error('Error generating all content:', error);
+    } finally {
+      setIsGeneratingAll(false);
     }
   };
 
-  // Handle AI section generation
-const handleGenerateSections = async (title: string, purpose: string) => {
-  try {
-    setIsGeneratingSections(true);
-    const response = await fetch('/api/generate-sections', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        title, 
-        purpose 
-      }),
-    });
+  // Update handleGenerateSections to return a promise
+  const handleGenerateSections = async (title: string, purpose: string): Promise<Section[]> => {
+    try {
+      setIsGeneratingSections(true);
+      const response = await fetch('/api/generate-sections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          title, 
+          purpose 
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to generate sections');
+      if (!response.ok) {
+        throw new Error('Failed to generate sections');
+      }
+
+      const data = await response.json();
+      
+      // Create new sections with all required properties
+      const newSections = data.sections.map((section: any) => ({
+        ...section,
+        isEditing: false,
+        isGenerating: false,
+        selectedSources: [],
+        sourceOption: 'model',
+        revisions: [],
+      }));
+
+      // Update state
+      setSections(newSections);
+      setDocumentTitle(title);
+      setDocumentPurpose(purpose);
+      
+      // Return the new sections directly
+      return newSections;
+    } catch (error) {
+      console.error('Error generating sections:', error);
+      throw error;
+    } finally {
+      setIsGeneratingSections(false);
     }
-
-    const data = await response.json();
-    setSections(data.sections);
-    setDocumentTitle(title);
-    setDocumentPurpose(purpose);
-
-
-  } catch (error) {
-    console.error('Error generating sections:', error);
-  } finally {
-    setIsGeneratingSections(false);
-  }
-};
+  };
   
 
   // Template handlers
@@ -250,6 +269,8 @@ const handleGenerateSections = async (title: string, purpose: string) => {
           onGenerateSections={handleGenerateSections}
           isGenerating={isGeneratingSections}
           onGenerateAllContent={handleGenerateAllContent}
+          isGeneratingAll={isGeneratingAll}
+          sections={sections}
         />
       </div>
 

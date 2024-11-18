@@ -12,7 +12,7 @@ export class OpenAIProvider implements AIProvider {
 
   async generateSections(title: string, purpose: string): Promise<Section[]> {
     try {
-      const systemPrompt = `You are a helpful assistant that generates document sections. Generate sections that would make sense for the given document title and purpose. Each section should have a clear title and description. Return the response in this exact JSON format, and nothing else. Ensure that the response is valid JSON and that the sections array is not empty:
+      const systemPrompt = `You are a helpful assistant that generates document sections. Generate sections that would make sense for the given document title and purpose. Each section should have a clear title and description. Return ONLY a JSON object in this exact format:
       {
         "sections": [
           {
@@ -33,19 +33,29 @@ export class OpenAIProvider implements AIProvider {
             role: "user",
             content: `Please generate appropriate sections for a document with the following details:
             Title: ${title}
-            Purpose: ${purpose}`
+            Purpose: ${purpose}
+            
+            Remember to return ONLY valid JSON.`
           }
         ],
-        temperature: 0.7,
+        temperature: 0.5,
       });
 
-      // Log the response content for debugging
-      console.log('OpenAI response:', response.choices[0].message.content);      
+      const content = response.choices[0].message.content?.trim() || "{}";
       
-      // Parse the JSON response from the message content
-      const result = JSON.parse(response.choices[0].message.content || "{}");
-      if (!result.sections) {
-        throw new Error("Invalid response from OpenAI");
+      // Try to clean the response if it contains markdown code blocks
+      const jsonContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      
+      let result;
+      try {
+        result = JSON.parse(jsonContent);
+      } catch (parseError) {
+        console.error('Failed to parse JSON:', jsonContent);
+        throw new Error('Invalid JSON response from AI');
+      }
+
+      if (!result.sections || !Array.isArray(result.sections)) {
+        throw new Error("Invalid response structure from OpenAI");
       }
       
       // Transform the API response into our Section type

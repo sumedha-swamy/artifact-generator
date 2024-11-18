@@ -1,0 +1,15 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+    darkMode: ["class"],
+    content: [
+    "./app/**/*.{js,ts,jsx,tsx,mdx}", // Note: includes all files in app directory
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}", // If you have pages directory
+    "./components/**/*.{js,ts,jsx,tsx,mdx}", // If you have components directory
+    "./src/**/*.{js,ts,jsx,tsx,mdx}", // If you have src directory
+  ],
+  
+  plugins: [
+    require('@tailwindcss/typography'),
+    require("tailwindcss-animate")
+  ],
+}

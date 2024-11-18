@@ -1,13 +1,4 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  webpack: (config, { webpack }) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      "punycode": false,
-    };
-    return config;
-  },
-}
+const nextConfig = {}
 
 module.exports = nextConfig
