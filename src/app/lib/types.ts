@@ -5,15 +5,17 @@ export interface Section {
   title: string;
   content: string;
   description: string;
+  objective?: string;
+  keyPoints?: string[];
+  estimatedLength?: string;
+  targetAudience?: string;
   strength: number;
   isEditing: boolean;
   isGenerating: boolean;
   selectedSources: string[];
-  sourceOption: string;
   revisions: Array<{ content: string; description: string }>;
-  currentRevisionIndex?: number;
+  sourceOption?: string;
 }
-
 
 
 export interface Template {

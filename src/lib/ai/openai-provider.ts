@@ -1,6 +1,6 @@
-import { AIProvider, Section, SectionGenerationRequest, SectionGenerationResponse } from './types';
+import { AIProvider, SectionGenerationRequest, SectionGenerationResponse } from './types';
 import OpenAI from 'openai';
-
+import { Section } from '@/app/lib/types';
 export class OpenAIProvider implements AIProvider {
   private client: OpenAI;
   private model: string;
@@ -10,40 +10,47 @@ export class OpenAIProvider implements AIProvider {
     this.model = model;
   }
 
-  async generateSections(title: string, purpose: string): Promise<Section[]> {
+  async generateSections(title: string, purpose: string, domain: string = "Product Management"): Promise<Section[]> {
     try {
-      const systemPrompt = `You are a helpful assistant that generates document sections. Generate sections that would make sense for the given document title and purpose. Each section should have a clear title and description. Return ONLY a JSON object in this exact format:
-      {
-        "sections": [
-          {
-            "title": "string",
-            "description": "string"
-          }
-        ]
-      }`;
+      const systemPrompt = `You are an expert document architect with deep experience in ${domain}. You excel at creating logical, comprehensive document structures that follow industry best practices.`;
+
+      const userPrompt = `As an expert in ${domain}, create a structured outline for a document with the following details:
+
+Title: ${title}
+Purpose: ${purpose}
+
+Generate sections that would create a compelling and comprehensive document. Each section must:
+- Follow ${domain} industry best practices
+- Progress logically from introduction to conclusion
+- Cover all essential aspects of the topic
+- Be clearly scoped and focused
+
+Return ONLY a JSON object in this exact format:
+{
+  "sections": [
+    {
+      "title": "string",
+      "description": "string", 
+      "objective": "string",
+      "key_points": ["string"],
+      "estimated_length": "string",
+      "target_audience": "string"
+    }
+  ]
+}`;
 
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: `Please generate appropriate sections for a document with the following details:
-            Title: ${title}
-            Purpose: ${purpose}
-            
-            Remember to return ONLY valid JSON.`
-          }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
         ],
         temperature: 0.5,
       });
 
       const content = response.choices[0].message.content?.trim() || "{}";
       
-      // Try to clean the response if it contains markdown code blocks
+      // Clean the response if it contains markdown code blocks
       const jsonContent = content.replace(/```json\n?|\n?```/g, '').trim();
       
       let result;
@@ -63,12 +70,17 @@ export class OpenAIProvider implements AIProvider {
         id: `section-${index + 1}`,
         title: section.title,
         description: section.description,
+        objective: section.objective,
+        keyPoints: section.key_points,
+        estimatedLength: section.estimated_length,
+        targetAudience: section.target_audience,
         content: "",
         strength: 100,
         isEditing: false,
         isGenerating: false,
         selectedSources: []
       }));
+
     } catch (error) {
       console.error('Error generating sections with OpenAI:', error);
       throw error;
@@ -77,61 +89,80 @@ export class OpenAIProvider implements AIProvider {
 
   async generateSection(
     documentTitle: string,
-    documentPurpose: string,
-    sectionInfo: SectionGenerationRequest
+    documentPurpose: string, 
+    sectionInfo: SectionGenerationRequest,
+    domain: string = "general",
+    styleGuide: string = "professional"
   ): Promise<SectionGenerationResponse> {
     try {
-      // First, generate the section content
+      const systemPrompt = `You are a senior content specialist in ${domain} writing a section that fits seamlessly within a larger document. Your role is to create content that flows naturally from the previous section and into the next, without standalone introductions or conclusions. Focus on the specific topic of this section while maintaining narrative continuity with the surrounding content.`;
+
+      const userPrompt = `Write the "${sectionInfo.sectionTitle}" section of a ${domain} document. This is NOT a standalone piece - it's part of a larger document.
+
+Context:
+Document: "${documentTitle}"
+Purpose: ${documentPurpose}
+Section Objective: ${sectionInfo.objective || 'Not specified'}
+Target Audience: ${sectionInfo.targetAudience || 'General audience'}
+Expected Length: ${sectionInfo.estimatedLength || 'As needed for comprehensive coverage'}
+
+Document Flow:
+${sectionInfo.otherSections.length > 0 
+  ? `Previous Section: "${sectionInfo.otherSections[sectionInfo.otherSections.length - 1]?.title}"
+Next Section: "${sectionInfo.otherSections[0]?.title}"`
+  : 'This is a standalone section'}
+
+Key Points to Address:
+${(sectionInfo.keyPoints || []).map(point => `• ${point}`).join('\n')}
+
+Writing Guidelines:
+1. Do NOT write an introduction, conclusion, or a summary for this section
+2. Start directly with the subject matter, assuming reader context from previous sections
+3. Focus purely on this section's specific topic and objectives
+4. Use ${domain}-specific terminology naturally
+5. Maintain ${styleGuide} style throughout
+6. Format with clear subheadings and lists where appropriate
+
+Content should flow as if reading a chapter in a book - picking up from the previous section and leading into the next.`;
+
+      // Generate content
       const contentResponse = await this.client.chat.completions.create({
         model: this.model,
         messages: [
-          {
-            role: "system",
-            content: `You are an expert content writer. Generate content for a section of a document, ensuring it's cohesive with the rest of the document and meets the section's objectives. The content should be clear, comprehensive, and well-written.`
-          },
-          {
-            role: "user",
-            content: `Generate content for a section with the following context:
-            
-            Document Title: ${documentTitle}
-            Document Purpose: ${documentPurpose}
-            
-            Section to Generate:
-            Title: ${sectionInfo.sectionTitle}
-            Description: ${sectionInfo.sectionDescription}
-            
-            Other Sections in the Document:
-            ${sectionInfo.otherSections.map(section => `
-              ${section.title}:
-              ${section.content}
-            `).join('\n')}
-            
-            Generate comprehensive, clear, and cohesive content for the specified section.`
-          }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
         ],
         temperature: 0.7,
       });
 
       const generatedContent = contentResponse.choices[0].message.content || "";
 
-      // Then, evaluate the generated content
+      // Enhanced evaluation prompt focusing on flow and integration
+      const evaluationPrompt = `You are an expert content evaluator in ${domain}. Evaluate the given content on a scale of 1-100 based on:
+1. Integration with document flow (40 points)
+   - No redundant introduction/conclusion
+   - Natural continuation from previous section
+   - Smooth lead-in to next section
+2. Content quality (30 points)
+   - Appropriate depth
+   - Industry expertise
+   - Clear structure
+3. Writing style (30 points)
+   - Consistent tone
+   - Professional language
+   - Readability
+
+Provide only a number as response, nothing else.`;
+
       const evaluationResponse = await this.client.chat.completions.create({
         model: this.model,
         messages: [
-          {
-            role: "system",
-            content: `You are an expert content evaluator. Evaluate the given content on a scale of 1-100 based on:
-            1. Clarity and crispness (30 points)
-            2. Comprehensiveness of information (40 points)
-            3. Quality and readability (30 points)
-            
-            Provide only a number as response, nothing else.`
-          },
-          {
+          { role: "system", content: evaluationPrompt },
+          { 
             role: "user",
-            content: `Evaluate this content for the section "${sectionInfo.sectionTitle}" with description "${sectionInfo.sectionDescription}":
-            
-            ${generatedContent}`
+            content: `Evaluate this content for the section "${sectionInfo.sectionTitle}" within the document "${documentTitle}":
+
+${generatedContent}`
           }
         ],
         temperature: 0,
@@ -143,10 +174,10 @@ export class OpenAIProvider implements AIProvider {
         content: generatedContent,
         strength: strength
       };
+
     } catch (error) {
       console.error('Error generating section with OpenAI:', error);
       throw error;
     }
   }
-
 }

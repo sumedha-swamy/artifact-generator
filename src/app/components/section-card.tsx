@@ -215,7 +215,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600 font-medium">Source:</span>
             <SourceSelect
-              value={sourceOption}
+              value={sourceOption || ''}
               onChange={handleSourceOptionChange}
             />
           </div>

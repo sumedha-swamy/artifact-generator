@@ -1,3 +1,5 @@
+import { Section } from '@/app/lib/types';
+
 export type AIProviderType = 'openai' | 'anthropic' | 'bedrock';
 
 export interface AIProvider {
@@ -12,6 +14,10 @@ export interface AIProvider {
 export interface SectionGenerationRequest {
   sectionTitle: string;
   sectionDescription: string;
+  objective?: string;
+  keyPoints?: string[];
+  estimatedLength?: string;
+  targetAudience?: string;
   otherSections: {
     title: string;
     content: string;
@@ -24,15 +30,3 @@ export interface SectionGenerationResponse {
 }
 
 
-export interface Section {
-  id: string;
-  title: string;
-  content: string;
-  description: string;
-  strength: number;
-  isEditing: boolean;
-  isGenerating: boolean;
-  selectedSources: string[];
-  revisions: Array<{ content: string; description: string }>;
-  sourceOption?: string;
-}

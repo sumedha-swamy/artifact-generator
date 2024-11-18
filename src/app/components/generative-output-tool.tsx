@@ -69,6 +69,7 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
       selectedSources: [],
       sourceOption: 'model',
       revisions: [],
+      estimatedLength: '500 words',
     };
     setSections([...sections, newSection]);
   };
@@ -156,12 +157,10 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
         sectionsToGenerate = await handleGenerateSections(documentTitle, documentPurpose);
       }
       
-      // Pass the sectionsToGenerate to handleSectionRegenerate
-      const regeneratePromises = sectionsToGenerate.map(section => 
-        handleSectionRegenerate(section.id, sectionsToGenerate)
-      );
-      
-      await Promise.all(regeneratePromises);
+      // Regenerate sections in order
+      for (const section of sectionsToGenerate) {
+        await handleSectionRegenerate(section.id, sectionsToGenerate);
+      }
     } catch (error) {
       console.error('Error generating all content:', error);
     } finally {
