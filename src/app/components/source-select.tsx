@@ -44,7 +44,7 @@ export function SourceSelect({ value: propValue, onChange }: SourceSelectProps) 
             aria-expanded={open}
             className="w-[200px] justify-between bg-white border-gray-300 text-gray-900"
           >
-            {currentValue?.label ?? "Select documents"}
+            {currentValue?.label ?? "All documents"}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>

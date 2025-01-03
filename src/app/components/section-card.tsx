@@ -38,7 +38,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const revisions = section.revisions || [];
   const [currentRevisionIndex, setCurrentRevisionIndex] = useState(revisions.length > 0 ? revisions.length - 1 : 0);
-  const [sourceOption, setSourceOption] = useState(section.sourceOption);
+  const [sourceOption, setSourceOption] = useState(section.sourceOption || 'all');
   const [isResourceSelectOpen, setIsResourceSelectOpen] = useState(false);
 
   // Update currentRevisionIndex when revisions change
@@ -185,30 +185,28 @@ const SectionCard: React.FC<SectionCardProps> = ({
           onChange={handleContentChange}
         />
         
-        {/* Revision Navigation */}
-        <div className="flex justify-center items-center mt-2 gap-2">
-          <button 
-            className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-500"
-            onClick={() => handleRevisionChange(currentRevisionIndex - 1)}
-            disabled={currentRevisionIndex <= 0}
-          >
-            &lt;
-          </button>
-          <span className="text-sm text-gray-600">
-            {revisions.length === 0 ? (
-              "No revisions"
-            ) : (
-              `Revision ${currentRevisionIndex + 1} of ${revisions.length}`
-            )}
-          </span>
-          <button 
-            className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-500"
-            onClick={() => handleRevisionChange(currentRevisionIndex + 1)}
-            disabled={currentRevisionIndex >= revisions.length - 1}
-          >
-            &gt;
-          </button>
-        </div>
+        {/* Revision Navigation - Only show if there are revisions */}
+        {revisions.length > 0 && (
+          <div className="flex justify-center items-center mt-2 gap-2">
+            <button 
+              className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-500"
+              onClick={() => handleRevisionChange(currentRevisionIndex - 1)}
+              disabled={currentRevisionIndex <= 0}
+            >
+              &lt;
+            </button>
+            <span className="text-sm text-gray-600">
+              Revision {currentRevisionIndex + 1} of {revisions.length}
+            </span>
+            <button 
+              className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-500"
+              onClick={() => handleRevisionChange(currentRevisionIndex + 1)}
+              disabled={currentRevisionIndex >= revisions.length - 1}
+            >
+              &gt;
+            </button>
+          </div>
+        )}
 
         {/* Source Options and Resource Selection */}
         <div className="flex flex-col gap-2">

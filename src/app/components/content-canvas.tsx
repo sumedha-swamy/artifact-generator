@@ -6,6 +6,9 @@ import TopBar from './top-bar';
 import SectionCard from './section-card';
 import { Section, Resource } from '@/app/lib/types'; 
 
+// Add this utility function
+const generateId = () => crypto.randomUUID();
+
 interface ContentCanvasProps {
   sections: Section[];
   activeSection: string | null;
@@ -45,6 +48,21 @@ const ContentCanvas: React.FC<ContentCanvasProps> = ({
           // Handle section reordering here
         }
       };
+
+  // When creating a new section
+  const newSection: Section = {
+    id: generateId(),
+    title: 'New Section',
+    content: '',
+    description: '',
+    strength: 0,
+    isEditing: false,
+    isGenerating: false,
+    selectedSources: [],
+    revisions: [],
+    sourceOption: 'all'  // Set default source option to 'all'
+  };
+
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50">
       {/* Sections Area */}

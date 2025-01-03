@@ -2,7 +2,7 @@ import os
 from typing import List, Dict
 import tempfile
 import time
-from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader, WebBaseLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -10,6 +10,10 @@ from fastapi import UploadFile
 import asyncio
 import uuid
 from config import OPENAI_API_KEY
+from urllib.parse import urlparse
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DocumentProcessor:
     def __init__(self):
@@ -122,3 +126,57 @@ class DocumentProcessor:
             'metadata': doc.metadata,
             'score': score
         } for doc, score in results] 
+
+    async def process_url(self, url: str) -> Dict:
+        try:
+            # Validate URL
+            result = urlparse(url)
+            if not all([result.scheme, result.netloc]):
+                raise ValueError("Invalid URL format")
+
+            # Create a unique ID for this URL
+            doc_id = int(time.time() * 1000)
+
+            # Use LangChain's WebBaseLoader
+            loader = WebBaseLoader(url)
+            docs = await asyncio.to_thread(loader.load)  # Run in thread to not block
+
+            # Split documents
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200
+            )
+            split_docs = splitter.split_documents(docs)
+
+            # Add unique IDs to each chunk
+            vector_ids = []
+            for doc in split_docs:
+                vector_id = str(uuid.uuid4())
+                doc.metadata['vector_id'] = vector_id
+                doc.metadata['source_url'] = url
+                vector_ids.append(vector_id)
+
+            # Add to vector store
+            if self.vector_store is None:
+                self.vector_store = FAISS.from_documents(split_docs, self.embeddings)
+            else:
+                self.vector_store.add_documents(split_docs)
+
+            # Store mapping
+            self.document_map[doc_id] = {
+                'vector_ids': vector_ids,
+                'name': result.netloc,  # Use domain as name
+                'url': url
+            }
+
+            return {
+                'id': doc_id,
+                'name': result.netloc,
+                'vector_ids': vector_ids,
+                'status': 'completed',
+                'type': 'url'
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing URL: {str(e)}")
+            raise 

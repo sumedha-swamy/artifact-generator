@@ -39,5 +39,5 @@ export interface Resource {
   id: number;
   name: string;
   path: string;
-  selected?: boolean;
+  status: 'processing' | 'completed' | 'error';
 }

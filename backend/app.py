@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 from typing import List, Optional
 import uvicorn
 import logging
@@ -30,6 +30,9 @@ class ProcessedDocument(BaseModel):
     name: str
     vector_ids: List[str]
     status: str
+
+class URLRequest(BaseModel):
+    url: HttpUrl
 
 @app.post("/api/documents/process", response_model=ProcessedDocument)
 async def process_document(file: UploadFile):
@@ -66,6 +69,14 @@ async def query_documents(query: str, top_k: int = 3):
     except Exception as e:
         logger.error(f"Error querying documents: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/documents/process-url", response_model=ProcessedDocument)
+async def process_url(request: URLRequest):
+    try:
+        result = await doc_processor.process_url(str(request.url))
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == "__main__":
     logger.info("Starting FastAPI server")

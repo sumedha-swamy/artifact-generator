@@ -41,4 +41,12 @@ export class DocumentService {
 
     return response.data;
   }
+
+  static async processUrl(url: string): Promise<ProcessedDocument> {
+    const response = await axios.post<ProcessedDocument>(
+      `${this.API_BASE_URL}/documents/process-url`,
+      { url }
+    );
+    return response.data;
+  }
 } 

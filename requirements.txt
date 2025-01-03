@@ -8,3 +8,4 @@ faiss-cpu
 python-docx
 python-dotenv 
 pypdf
+beautifulsoup4

@@ -23,6 +23,8 @@ const SourceItem = ({ source, onDelete, onSelect }: {
   onDelete: (id: number) => void;
   onSelect: (id: number) => void;
 }) => {
+  const isUrl = source.path.startsWith('http://') || source.path.startsWith('https://');
+  
   return (
     <div
       className={`flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer group ${
@@ -48,7 +50,7 @@ const SourceItem = ({ source, onDelete, onSelect }: {
           <div className="text-xs text-green-600">Ready</div>
         )}
         
-        {/* Delete button - only show for completed or error states */}
+        {/* Delete button */}
         {(source.status === 'completed' || source.status === 'error') && (
           <button
             className="p-1 hover:bg-gray-200 rounded opacity-0 group-hover:opacity-100 transition-opacity"
@@ -56,7 +58,7 @@ const SourceItem = ({ source, onDelete, onSelect }: {
               e.stopPropagation();
               onDelete(source.id);
             }}
-            title="Delete document"
+            title={`Delete ${isUrl ? 'webpage' : 'document'}`}
           >
             <Trash size={14} className="text-gray-500 hover:text-red-500" />
           </button>
@@ -70,6 +72,7 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
   const [sources, setSources] = useState<Source[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
 
   const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
@@ -214,11 +217,54 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
 
           {/* URL input field */}
           {showUrlInput && (
-            <input
-              type="url"
-              placeholder="Enter URL..."
-              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-            />
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const url = urlInput.trim();
+                
+                if (!url) return;
+
+                // Add temporary source with processing status
+                const tempId = Date.now();
+                setSources(prev => [...prev, {
+                  id: tempId,
+                  name: new URL(url).hostname,
+                  path: url,
+                  status: 'processing'
+                }]);
+
+                try {
+                  const processedDoc = await DocumentService.processUrl(url);
+                  // Replace temporary source with processed document
+                  setSources(prev => prev.map(source => 
+                    source.id === tempId ? {
+                      ...processedDoc,
+                      path: url,  // Add the missing path property
+                      status: 'completed'
+                    } : source
+                  ));
+                } catch (error) {
+                  console.error('Error processing URL:', error);
+                  setSources(prev => prev.map(source => 
+                    source.id === tempId ? { ...source, status: 'error' } : source
+                  ));
+                  alert('Failed to process URL. Please check the URL and try again.');
+                }
+
+                // Clear input
+                setUrlInput('');
+                setShowUrlInput(false);
+              }}
+            >
+              <input
+                type="url"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                placeholder="Enter URL and press Enter"
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm mt-2"
+                autoFocus
+              />
+            </form>
           )}
         </div>
 
