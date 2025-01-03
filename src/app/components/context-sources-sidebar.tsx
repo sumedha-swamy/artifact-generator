@@ -1,13 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, FileText, Link, Trash, ChevronDown } from 'lucide-react';
+import { Plus, FileText, Link, Trash, ChevronDown, Loader2 } from 'lucide-react';
+import { DocumentService } from '@/lib/api/document-service';
+import { AxiosError } from 'axios';
 
 interface Source {
   id: number;
   name: string;
   path: string;
   selected?: boolean;
+  status: 'processing' | 'completed' | 'error';
 }
 
 interface ContextSourcesSidebarProps {
@@ -15,10 +18,57 @@ interface ContextSourcesSidebarProps {
   onSelectResources: (selectedResources: Source[]) => void;
 }
 
+const SourceItem = ({ source, onDelete, onSelect }: { 
+  source: Source; 
+  onDelete: (id: number) => void;
+  onSelect: (id: number) => void;
+}) => {
+  return (
+    <div
+      className={`flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer group ${
+        source.selected ? 'bg-blue-50' : ''
+      }`}
+      onClick={() => onSelect(source.id)}
+    >
+      <FileText size={20} className="text-gray-600 flex-shrink-0" />
+      <span className="flex-1 truncate" title={source.name}>{source.name}</span>
+      
+      {/* Status indicators */}
+      <div className="flex items-center gap-2">
+        {source.status === 'processing' && (
+          <div className="flex items-center gap-1 text-blue-600">
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-xs">Processing...</span>
+          </div>
+        )}
+        {source.status === 'error' && (
+          <span className="text-xs text-red-600">Failed</span>
+        )}
+        {source.status === 'completed' && (
+          <div className="text-xs text-green-600">Ready</div>
+        )}
+        
+        {/* Delete button - only show for completed or error states */}
+        {(source.status === 'completed' || source.status === 'error') && (
+          <button
+            className="p-1 hover:bg-gray-200 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(source.id);
+            }}
+            title="Delete document"
+          >
+            <Trash size={14} className="text-gray-500 hover:text-red-500" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectResources }) => {
   const [sources, setSources] = useState<Source[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
 
   const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
@@ -30,47 +80,98 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
     setIsDragOver(false);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     setIsDragOver(false);
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      const newSource = {
-        id: Date.now(),
-        name: files[0].name,
-        path: URL.createObjectURL(files[0])
-      };
-      setSources([...sources, newSource]);
+      const file = files[0];
+      const tempId = Date.now();
+      // Add temporary source with processing status
+      setSources(prev => [...prev, {
+        id: tempId,
+        name: file.name,
+        path: URL.createObjectURL(file),
+        status: 'processing'
+      }]);
+      
+      try {
+        const processedDoc = await DocumentService.processDocument(file);
+        // Replace temporary source with processed document
+        setSources(prev => prev.map(source => 
+          source.id === tempId 
+            ? { 
+                ...processedDoc,
+                path: URL.createObjectURL(file) // Keep the local URL for preview
+              } 
+            : source
+        ));
+      } catch (error) {
+        console.error('Error processing document:', error);
+        setSources(prev => prev.map(source => 
+          source.id === tempId ? { 
+            ...source, 
+            status: 'error',
+            error: ((error as AxiosError<{detail: string}>).response?.data?.detail) || 'Failed to process document'
+          } : source
+        ));
+        // Optionally show error in UI
+        alert(((error as AxiosError<{detail: string}>).response?.data?.detail) || 'Failed to process document');
+      }
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const newSource = {
-        id: Date.now(),
-        name: files[0].name,
-        path: URL.createObjectURL(files[0])
-      };
-      setSources([...sources, newSource]);
+      const file = files[0];
+      const tempId = Date.now();
+      // Add temporary source with processing status
+      setSources(prev => [...prev, {
+        id: tempId,
+        name: file.name,
+        path: URL.createObjectURL(file),
+        status: 'processing'
+      }]);
+      
+      try {
+        const processedDoc = await DocumentService.processDocument(file);
+        // Replace temporary source with processed document
+        setSources(prev => prev.map(source => 
+          source.id === tempId 
+            ? { 
+                ...processedDoc,
+                path: URL.createObjectURL(file) // Keep the local URL for preview
+              } 
+            : source
+        ));
+      } catch (error) {
+        console.error('Error processing document:', error);
+        setSources(prev => prev.map(source => 
+          source.id === tempId ? { 
+            ...source, 
+            status: 'error',
+            error: ((error as AxiosError<{detail: string}>).response?.data?.detail) || 'Failed to process document'
+          } : source
+        ));
+        // Optionally show error in UI
+        alert(((error as AxiosError<{detail: string}>).response?.data?.detail) || 'Failed to process document');
+      }
     }
   };
 
-  const handleAddUrl = () => {
-    if (urlInput.trim()) {
-      const newSource = {
-        id: Date.now(),
-        name: urlInput,
-        path: urlInput
-      };
-      setSources([...sources, newSource]);
-      setUrlInput('');
-      setShowUrlInput(false);
+  const handleDelete = async (id: number) => {
+    try {
+      await DocumentService.deleteDocument(id);
+      setSources(prev => prev.filter(source => source.id !== id));
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      if ((error as AxiosError).response?.status === 404) {
+        setSources(prev => prev.filter(source => source.id !== id));
+      } else {
+        alert('Failed to delete document. Please try again.');
+      }
     }
-  };
-
-  const handleDelete = (id: number) => {
-    setSources(sources.filter(source => source.id !== id));
   };
 
   const handleResourceSelect = (selectedId: number) => {
@@ -85,9 +186,21 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
     <div className="w-64 flex-shrink-0 bg-white border-r border-gray-300 overflow-y-auto">
       <div className="p-4">
         <h2 className="text-lg font-semibold text-gray-900 mb-2">Resources</h2>
+        
+        {/* File upload buttons */}
         <div className="space-y-2">
           <div className="flex">
-            <label className="flex-grow bg-blue-600 text-white rounded-l-lg p-2 flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors cursor-pointer">
+            <label 
+              className={`flex-grow bg-blue-600 text-white rounded-l-lg p-2 flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors cursor-pointer ${
+                isDragOver ? 'bg-blue-700' : ''
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={handleDrop}
+            >
               <Plus size={20} /> Add Resource
               <input type="file" className="hidden" onChange={handleFileSelect} />
             </label>
@@ -98,60 +211,33 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
               <ChevronDown size={16} />
             </button>
           </div>
+
+          {/* URL input field */}
           {showUrlInput && (
-            <div className="mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
-              <input
-                type="text"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="Enter URL"
-                className="w-full p-2 border-b border-gray-300"
-              />
-              <button
-                onClick={handleAddUrl}
-                className="w-full bg-blue-600 text-white rounded-b-lg p-2 hover:bg-blue-700 transition-colors"
-              >
-                Add URL
-              </button>
+            <input
+              type="url"
+              placeholder="Enter URL..."
+              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+            />
+          )}
+        </div>
+
+        {/* Document list */}
+        <div className="mt-4 space-y-1">
+          {sources.map(source => (
+            <SourceItem
+              key={source.id}
+              source={source}
+              onDelete={handleDelete}
+              onSelect={(id) => handleResourceSelect(id)}
+            />
+          ))}
+          
+          {sources.length === 0 && (
+            <div className="text-sm text-gray-500 text-center py-4">
+              No resources added yet
             </div>
           )}
-          <label
-            htmlFor="fileInput"
-            className={`block mt-4 p-4 bg-blue-50 rounded-lg cursor-pointer ${isDragOver ? 'border-2 border-blue-500' : ''}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <h3 className="text-sm font-medium text-blue-700 mb-1">Add Resources</h3>
-            <p className="text-sm text-blue-600">
-              Drag and drop files here, or click to browse.
-            </p>
-          </label>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between text-sm text-gray-500 px-2">
-          <span>Resources</span>
-          <span>{sources.length} items</span>
-        </div>
-        
-        <div className="space-y-1">
-          {sources.map(source => (
-            <div
-              key={source.id}
-              className={`flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer group text-gray-600 ${source.selected ? 'bg-blue-100' : ''}`}
-              onClick={() => handleResourceSelect(source.id)}
-            >
-              <FileText size={20} className="text-gray-600" />
-              <span className="flex-1 truncate" title={source.path}>{source.name}</span>
-              <div className="hidden group-hover:flex items-center gap-1">
-                <button className="p-1 hover:bg-gray-200 rounded" onClick={() => handleDelete(source.id)}>
-                  <Trash size={14} className="text-gray-500" />
-                </button>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>
