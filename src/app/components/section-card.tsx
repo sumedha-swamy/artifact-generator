@@ -18,7 +18,6 @@ interface SectionCardProps {
   onDelete: (id: string) => void;
   onRegenerate: (id: string) => void;
   onDragStart: (e: React.DragEvent<Element>, id: string) => void;
-  onTitleChange: (id: string, title: string) => void;
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
 }
@@ -31,7 +30,6 @@ const SectionCard: React.FC<SectionCardProps> = ({
   onDelete,
   onRegenerate,
   onDragStart,
-  onTitleChange,
   onDragOver,
   onDrop
 }) => {
@@ -99,16 +97,14 @@ const SectionCard: React.FC<SectionCardProps> = ({
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      {/* Section Header */}
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-gray-50 rounded-t-lg border-b">
-        {/* Title Area */}
         <div className="flex items-center gap-2">
           <MoveVertical size={16} className="text-gray-400 cursor-move" />
           {isEditingTitle ? (
             <input
               type="text"
               value={section.title}
-              onChange={(e) => onTitleChange(section.id, e.target.value)}
+              onChange={(e) => onUpdate(section.id, { title: e.target.value })}
               onBlur={() => setIsEditingTitle(false)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -127,26 +123,14 @@ const SectionCard: React.FC<SectionCardProps> = ({
             </CardTitle>
           )}
         </div>
-        
-        {/* Controls */}
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-gray-600 flex items-center gap-1">
-            <div className={`w-2 h-2 rounded-full ${
-              section.strength >= 80 ? 'bg-green-500' :
-              section.strength >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-            }`} />
-            Strength: {getStrengthDisplay()}
-          </div>
-          <button 
-            className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-500 hover:text-red-500"
-            onClick={() => onDelete(section.id)}
-          >
-            <Trash2 size={16} />
-          </button>
-          <button className="p-1 hover:bg-gray-100 rounded transition-colors text-gray-500">
-            {isActive ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-          </button>
-        </div>
+
+        {/* Delete button */}
+        <button
+          onClick={() => onDelete(section.id)}
+          className="p-1 hover:bg-gray-200 rounded transition-colors"
+        >
+          <Trash2 size={16} className="text-gray-400 hover:text-red-500" />
+        </button>
       </CardHeader>
 
       <CardContent className="space-y-4 p-4">
@@ -168,6 +152,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
           <button 
             className="mt-2 flex items-center gap-1 px-2.5 py-1 text-sm border border-gray-200 rounded-md hover:bg-gray-50 transition-colors text-gray-600"
             onClick={() => onRegenerate(section.id)}
+            disabled={section.isGenerating}
           >
             <RefreshCcw 
               size={14} 

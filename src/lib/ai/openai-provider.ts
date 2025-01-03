@@ -1,6 +1,9 @@
 import { AIProvider, SectionGenerationRequest, SectionGenerationResponse } from './types';
 import OpenAI from 'openai';
 import { Section } from '@/app/lib/types';
+import { DocumentService } from '../api/document-service';
+import { QueryResult } from '../api/types';
+
 export class OpenAIProvider implements AIProvider {
   private client: OpenAI;
   private model: string;
@@ -92,12 +95,26 @@ Return ONLY a JSON object in this exact format:
     documentPurpose: string, 
     sectionInfo: SectionGenerationRequest,
     domain: string = "general",
-    styleGuide: string = "professional"
+    styleGuide: string = "professional",
+    selectedSources?: string[]
   ): Promise<SectionGenerationResponse> {
     try {
-      const systemPrompt = `You are a senior content specialist in ${domain} writing a section that fits seamlessly within a larger document. Your role is to create content that flows naturally from the previous section and into the next, without standalone introductions or conclusions. Focus on the specific topic of this section while maintaining narrative continuity with the surrounding content.`;
+      // Get relevant context from vector store with source filter
+      const contextResults = await DocumentService.queryContext({
+        description: sectionInfo.sectionDescription,
+        content: sectionInfo.content || '',
+        selectedSources
+      });
 
-      const userPrompt = `Write the "${sectionInfo.sectionTitle}" section of a ${domain} document. This is NOT a standalone piece - it's part of a larger document.
+      // Format context for the prompt
+      const relevantContext = contextResults.results
+        .map((result: QueryResult) => `Source: ${result.metadata.source || 'Document'}
+Content: ${result.content}
+---`).join('\n');
+
+      const systemPrompt = `You are a senior content specialist in ${domain} writing a section that fits seamlessly within a larger document. Use the provided reference materials to enrich your writing while maintaining narrative flow and coherence.`;
+
+      const userPrompt = `Write the "${sectionInfo.sectionTitle}" section of a ${domain} document using the provided reference materials.
 
 Context:
 Document: "${documentTitle}"
@@ -115,15 +132,22 @@ Next Section: "${sectionInfo.otherSections[0]?.title}"`
 Key Points to Address:
 ${(sectionInfo.keyPoints || []).map(point => `• ${point}`).join('\n')}
 
-Writing Guidelines:
-1. Do NOT write an introduction, conclusion, or a summary for this section
-2. Start directly with the subject matter, assuming reader context from previous sections
-3. Focus purely on this section's specific topic and objectives
-4. Use ${domain}-specific terminology naturally
-5. Maintain ${styleGuide} style throughout
-6. Format with clear subheadings and lists where appropriate
+Reference Materials:
+${relevantContext}
 
-Content should flow as if reading a chapter in a book - picking up from the previous section and leading into the next.`;
+Writing Guidelines:
+1. Incorporate insights from the reference materials naturally
+2. Do NOT write an introduction or conclusion
+3. Start directly with the subject matter
+4. Focus on this section's specific topic
+5. Use ${domain}-specific terminology
+6. Maintain ${styleGuide} style
+7. Format with clear subheadings and lists where appropriate
+
+Content should flow seamlessly with surrounding sections while leveraging the provided reference materials.`;
+
+      console.log("System Prompt:", systemPrompt);
+      console.log("User Prompt:", userPrompt);
 
       // Generate content
       const contentResponse = await this.client.chat.completions.create({

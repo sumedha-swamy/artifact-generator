@@ -9,4 +9,10 @@ export interface QueryResult {
   content: string;
   metadata: Record<string, any>;
   score: number;
+}
+
+export interface QueryContextRequest {
+  description: string;
+  content: string;
+  selectedSources?: string[];
 } 

@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 import tempfile
 import time
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader, WebBaseLoader
@@ -114,18 +114,36 @@ class DocumentProcessor:
         # Remove document from our mapping
         del self.document_map[doc_id]
 
-    async def query(self, query: str, top_k: int = 3) -> List[Dict]:
-        """Query the vector store for similar documents."""
-        if not self.vector_store:
-            return []
+    async def query(self, query: str, top_k: int = 3, source_filter: Optional[List[str]] = None) -> List[Dict]:
+        try:
+            if self.vector_store is None:
+                return []
 
-        results = self.vector_store.similarity_search_with_score(query, k=top_k)
-        
-        return [{
-            'content': doc.page_content,
-            'metadata': doc.metadata,
-            'score': score
-        } for doc, score in results] 
+            # If source filter is provided, use it to filter results
+            search_kwargs = {}
+            if source_filter:
+                search_kwargs["filter"] = {"source": {"$in": source_filter}}
+
+            # Perform the search
+            results = self.vector_store.similarity_search_with_score(
+                query,
+                k=top_k,
+                **search_kwargs
+            )
+
+            # Format results
+            formatted_results = []
+            for doc, score in results:
+                formatted_results.append({
+                    "content": doc.page_content,
+                    "metadata": doc.metadata,
+                    "score": float(score)
+                })
+
+            return formatted_results
+        except Exception as e:
+            logger.error(f"Error querying vector store: {str(e)}")
+            raise
 
     async def process_url(self, url: str) -> Dict:
         try:

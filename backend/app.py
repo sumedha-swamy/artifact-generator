@@ -34,6 +34,11 @@ class ProcessedDocument(BaseModel):
 class URLRequest(BaseModel):
     url: HttpUrl
 
+class QueryContextRequest(BaseModel):
+    description: str
+    content: str
+    selectedSources: Optional[List[str]] = None
+
 @app.post("/api/documents/process", response_model=ProcessedDocument)
 async def process_document(file: UploadFile):
     logger.debug(f"Processing document: {file.filename}")
@@ -77,6 +82,21 @@ async def process_url(request: URLRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/query-context")
+async def query_context(request: QueryContextRequest):
+    try:
+        query = f"{request.description}\n{request.content}"
+        results = await doc_processor.query(
+            query, 
+            top_k=5,
+            source_filter=request.selectedSources
+        )
+        return {"results": results}
+    except Exception as e:
+        logger.error(f"Error in query_context: {str(e)}")
+        # Return empty results instead of throwing error
+        return {"results": []}
 
 if __name__ == "__main__":
     logger.info("Starting FastAPI server")

@@ -14,14 +14,12 @@ export interface AIProvider {
 export interface SectionGenerationRequest {
   sectionTitle: string;
   sectionDescription: string;
+  content?: string;
   objective?: string;
   keyPoints?: string[];
   estimatedLength?: string;
   targetAudience?: string;
-  otherSections: {
-    title: string;
-    content: string;
-  }[];
+  otherSections: Array<{ title: string }>;
 }
 
 export interface SectionGenerationResponse {

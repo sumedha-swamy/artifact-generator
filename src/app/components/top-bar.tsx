@@ -82,7 +82,7 @@ const TopBar: React.FC<TopBarProps> = ({
           <input
             type="text"
             value={documentTitle}
-            onChange={(e) => handleTitleChange(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value)}
             className="flex-grow px-3 py-2 text-lg font-medium text-gray-800 border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Enter document title..."
           />

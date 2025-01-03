@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { ProcessedDocument, QueryResult } from './types';
+import { ProcessedDocument, QueryResult, QueryContextRequest } from './types';
 
 export class DocumentService {
   private static readonly API_BASE_URL = 'http://localhost:8000/api';
@@ -46,6 +46,14 @@ export class DocumentService {
     const response = await axios.post<ProcessedDocument>(
       `${this.API_BASE_URL}/documents/process-url`,
       { url }
+    );
+    return response.data;
+  }
+
+  static async queryContext(request: QueryContextRequest): Promise<any> {
+    const response = await axios.post(
+      `${this.API_BASE_URL}/query-context`,
+      request
     );
     return response.data;
   }

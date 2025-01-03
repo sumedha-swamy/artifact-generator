@@ -57,10 +57,14 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
   };
 
   const handleSectionAdd = () => {
-    const newId = sections.length === 0 ? '1' : (Math.max(...sections.map(s => parseInt(s.id))) + 1).toString();
+    // Generate a new ID based on the current sections
+    const newId = sections.length === 0 
+      ? '1' 
+      : (Math.max(...sections.map(s => parseInt(s.id))) + 1).toString(); // Ensure IDs are numeric
+
     const newSection: Section = {
       id: newId,
-      title: `Section ${newId}`,
+      title: `Section ${newId}`, // This should now correctly reference the newId
       content: '',
       strength: 0,
       description: 'New Section',
@@ -71,33 +75,27 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
       revisions: [],
       estimatedLength: '500 words',
     };
+
     setSections([...sections, newSection]);
   };
 
   const handleSectionRegenerate = async (sectionId: string, currentSections?: Section[]) => {
     try {
-      // Use the passed sections if available, otherwise use state
       const sectionsToUse = currentSections || sections;
+      const section = sectionsToUse.find(s => s.id === sectionId);
       
-      // Update isGenerating state first
+      if (!section) return;
+
+      // Set isGenerating to true before starting
       setSections(prevSections => 
         prevSections.map(s => s.id === sectionId ? { ...s, isGenerating: true } : s)
       );
-  
-      // Use sectionsToUse instead of sections state
-      const section = sectionsToUse.find(s => s.id === sectionId);
-      if (!section) {
-        console.error('Section not found:', sectionId);
-        return;
-      }
-  
-      const otherSections = sectionsToUse
-        .filter(s => s.id !== sectionId)
-        .map(s => ({
-          title: s.title,
-          content: s.content
-        }));
-  
+
+      // Get selected sources based on sourceOption
+      const sourcesToUse = section.sourceOption === 'selected' 
+        ? section.selectedSources 
+        : undefined;  // undefined means use all sources
+
       const response = await fetch('/api/generate-sections', {
         method: 'POST',
         headers: {
@@ -108,16 +106,22 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
           documentPurpose,
           sectionTitle: section.title,
           sectionDescription: section.description,
-          otherSections
+          otherSections: sectionsToUse
+            .filter(s => s.id !== sectionId)
+            .map(s => ({
+              title: s.title,
+              content: s.content
+            })),
+          selectedSources: sourcesToUse
         }),
       });
-  
+
       if (!response.ok) {
         throw new Error('Failed to regenerate section');
       }
-  
+
       const data = await response.json();
-  
+      
       // Update section with new content
       setSections(prevSections => {
         return prevSections.map(s => {
@@ -135,8 +139,7 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
           return s;
         });
       });
-  
-      return data;
+      
     } catch (error) {
       console.error('Error regenerating section:', error);
       setSections(prevSections => 
