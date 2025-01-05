@@ -2,12 +2,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Trash2, MoveVertical, RefreshCcw, Plus, FileText } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, MoveVertical, RefreshCcw, Plus, FileText, Eye, Edit2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SourceSelect } from './source-select';
 import { ResourceSelectDialog } from './resource-select-dialog';
 import { Section, Resource } from '@/app/lib/types';
+import ReactMarkdown from 'react-markdown';
+import { Toggle } from "@/components/ui/toggle";
 
 
 interface SectionCardProps {
@@ -38,6 +40,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
   const [currentRevisionIndex, setCurrentRevisionIndex] = useState(revisions.length > 0 ? revisions.length - 1 : 0);
   const [sourceOption, setSourceOption] = useState(section.sourceOption || 'all');
   const [isResourceSelectOpen, setIsResourceSelectOpen] = useState(false);
+  const [isMarkdownPreview, setIsMarkdownPreview] = useState(false);
 
   // Update currentRevisionIndex when revisions change
   useEffect(() => {
@@ -87,19 +90,31 @@ const SectionCard: React.FC<SectionCardProps> = ({
     return section.content.trim() ? `${section.strength}%` : 'N/A';
   };
 
+  const handleTemperatureChange = (value: number) => {
+    onUpdate(section.id, { temperature: value });
+  };
+
+  const handleLengthChange = (value: string) => {
+    onUpdate(section.id, { estimatedLength: value });
+  };
+
   return (
     <Card 
       className={`bg-white rounded-lg shadow-[0_4px_8px_rgba(0,0,0,0.06)] ${
         isActive ? 'border-blue-500' : 'border-transparent'
       } hover:shadow-md transition-shadow`}
-      draggable
-      onDragStart={(e) => onDragStart(e, section.id)}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-gray-50 rounded-t-lg border-b">
         <div className="flex items-center gap-2">
-          <MoveVertical size={16} className="text-gray-400 cursor-move" />
+          <div
+            draggable
+            onDragStart={(e) => onDragStart(e, section.id)}
+            className="cursor-move"
+          >
+            <MoveVertical size={16} className="text-gray-400" />
+          </div>
           {isEditingTitle ? (
             <input
               type="text"
@@ -134,9 +149,9 @@ const SectionCard: React.FC<SectionCardProps> = ({
       </CardHeader>
 
       <CardContent className="space-y-4 p-4">
-        {/* Description Field with Generate Button */}
-        <div>
-          <div className="relative mt-2">
+        {/* Description Field */}
+        <div className="mb-4">
+          <div className="relative">
             <div className="absolute -top-[9px] left-3 px-1.5 bg-white z-10">
               <span className="text-sm text-gray-500 font-medium">
                 Description
@@ -149,8 +164,54 @@ const SectionCard: React.FC<SectionCardProps> = ({
               rows={2}
             />
           </div>
+        </div>
+
+        {/* Generation Controls - with better spacing */}
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-3">
+          <div className="flex items-center gap-4">
+            {/* Length Control */}
+            <div className="flex items-center gap-2 flex-1">
+              <label className="text-xs text-gray-500 whitespace-nowrap">
+                Length:
+              </label>
+              <select
+                value={section.estimatedLength}
+                onChange={(e) => handleLengthChange(e.target.value)}
+                className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="As needed for comprehensive coverage">As needed</option>
+                <option value="250 words">Short (~250w)</option>
+                <option value="500 words">Medium (~500w)</option>
+                <option value="1000 words">Long (~1000w)</option>
+                <option value="1500 words">Very Long (~1500w)</option>
+              </select>
+            </div>
+
+            {/* Temperature Control */}
+            <div className="flex items-center gap-2 flex-1">
+              <label className="text-xs text-gray-500 whitespace-nowrap">
+                Creativity:
+              </label>
+              <div className="flex-1 flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={section.temperature ?? 0.7}
+                  onChange={(e) => handleTemperatureChange(parseFloat(e.target.value))}
+                  className="flex-1 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+                <span className="text-xs text-gray-500 w-8">
+                  {(section.temperature ?? 0.7).toFixed(1)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Generate Button */}
           <button 
-            className="mt-2 flex items-center gap-1 px-2.5 py-1 text-sm border border-gray-200 rounded-md hover:bg-gray-50 transition-colors text-gray-600"
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 rounded-md hover:bg-white transition-colors text-gray-600"
             onClick={() => onRegenerate(section.id)}
             disabled={section.isGenerating}
           >
@@ -161,14 +222,34 @@ const SectionCard: React.FC<SectionCardProps> = ({
             {section.isGenerating ? 'Generating...' : 'Generate'}
           </button>
         </div>
-        
-        {/* Content Textarea */}
-        <textarea 
-          className="w-full h-32 p-3 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white text-gray-700"
-          placeholder="Enter section content..."
-          value={section.content}
-          onChange={handleContentChange}
-        />
+
+        {/* Content Area */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600 font-medium">Content</span>
+            <Toggle
+              pressed={isMarkdownPreview}
+              onPressedChange={setIsMarkdownPreview}
+              size="sm"
+              aria-label="Toggle markdown preview"
+            >
+              {isMarkdownPreview ? <Edit2 size={14} /> : <Eye size={14} />}
+            </Toggle>
+          </div>
+          
+          {isMarkdownPreview ? (
+            <div className="prose prose-sm max-w-none p-3 border border-gray-200 rounded-lg bg-white min-h-[8rem] overflow-y-auto">
+              <ReactMarkdown>{section.content}</ReactMarkdown>
+            </div>
+          ) : (
+            <textarea 
+              className="w-full min-h-[8rem] p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white text-gray-700 resize-y"
+              placeholder="Enter section content in markdown format..."
+              value={section.content}
+              onChange={handleContentChange}
+            />
+          )}
+        </div>
         
         {/* Revision Navigation - Only show if there are revisions */}
         {revisions.length > 0 && (

@@ -7,7 +7,7 @@ export interface Section {
   description: string;
   objective?: string;
   keyPoints?: string[];
-  estimatedLength?: string;
+  estimatedLength: string;
   targetAudience?: string;
   strength: number;
   isEditing: boolean;
@@ -15,6 +15,7 @@ export interface Section {
   selectedSources: string[];
   revisions: Array<{ content: string; description: string }>;
   sourceOption?: string;
+  temperature: number;
 }
 
 

@@ -13,20 +13,27 @@ export class OpenAIProvider implements AIProvider {
     this.model = model;
   }
 
-  async generateSections(title: string, purpose: string, domain: string = "Product Management"): Promise<Section[]> {
+  async generateSections(
+    title: string,
+    purpose: string,
+    domain: string = "Product Management",
+    temperature: number = 0.7
+  ): Promise<Section[]> {
     try {
-      const systemPrompt = `You are an expert document architect with deep experience in ${domain}. You excel at creating logical, comprehensive document structures that follow industry best practices.`;
+      const systemPrompt = `You are an expert document architect with deep experience in ${domain}. Your specialty is creating cohesive, flowing document structures where each section naturally leads into the next, forming a single unified narrative.`;
 
       const userPrompt = `As an expert in ${domain}, create a structured outline for a document with the following details:
 
 Title: ${title}
 Purpose: ${purpose}
 
-Generate sections that would create a compelling and comprehensive document. Each section must:
+Generate sections that form a single, cohesive document. The sections must:
+- Flow naturally from one to the next, building a complete narrative
+- Avoid redundant introductions or conclusions within sections
+- Share information progressively, with each section building upon previous sections
+- Maintain consistent tone and style throughout
 - Follow ${domain} industry best practices
-- Progress logically from introduction to conclusion
 - Cover all essential aspects of the topic
-- Be clearly scoped and focused
 
 Return ONLY a JSON object in this exact format:
 {
@@ -37,7 +44,11 @@ Return ONLY a JSON object in this exact format:
       "objective": "string",
       "key_points": ["string"],
       "estimated_length": "string",
-      "target_audience": "string"
+      "target_audience": "string",
+      "transition_notes": {
+        "from_previous": "string",
+        "to_next": "string"
+      }
     }
   ]
 }`;
@@ -48,7 +59,7 @@ Return ONLY a JSON object in this exact format:
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.5,
+        temperature: temperature,
       });
 
       const content = response.choices[0].message.content?.trim() || "{}";
@@ -77,6 +88,7 @@ Return ONLY a JSON object in this exact format:
         keyPoints: section.key_points,
         estimatedLength: section.estimated_length,
         targetAudience: section.target_audience,
+        transitionNotes: section.transition_notes || { from_previous: "", to_next: "" },
         content: "",
         strength: 100,
         isEditing: false,
@@ -99,6 +111,11 @@ Return ONLY a JSON object in this exact format:
     selectedSources?: string[]
   ): Promise<SectionGenerationResponse> {
     try {
+      console.log('Generation parameters:', {
+        length: sectionInfo.estimatedLength,
+        temperature: sectionInfo.temperature
+      });
+
       // Get relevant context from vector store with source filter
       const contextResults = await DocumentService.queryContext({
         description: sectionInfo.sectionDescription,
@@ -112,22 +129,35 @@ Return ONLY a JSON object in this exact format:
 Content: ${result.content}
 ---`).join('\n');
 
-      const systemPrompt = `You are a senior content specialist in ${domain} writing a section that fits seamlessly within a larger document. Use the provided reference materials to enrich your writing while maintaining narrative flow and coherence.`;
+      const systemPrompt = `You are a senior content specialist in ${domain} writing a section that must flow seamlessly within a larger document. Your specialty is creating content that naturally connects with surrounding sections, avoiding redundant introductions or conclusions. The section should read as if it's part of a single, cohesive document rather than a standalone piece.`;
 
-      const userPrompt = `Write the "${sectionInfo.sectionTitle}" section of a ${domain} document using the provided reference materials.
+      // Find the previous and next sections
+      const currentIndex = sectionInfo.otherSections.findIndex(s => s.title === sectionInfo.sectionTitle);
+      const previousSection = currentIndex > 0 ? sectionInfo.otherSections[currentIndex - 1] : null;
+      const nextSection = currentIndex < sectionInfo.otherSections.length - 1 ? sectionInfo.otherSections[currentIndex + 1] : null;
+
+      const userPrompt = `Write the "${sectionInfo.sectionTitle}" section of a ${domain} document, ensuring it flows naturally within the larger document.
 
 Context:
 Document: "${documentTitle}"
 Purpose: ${documentPurpose}
 Section Objective: ${sectionInfo.objective || 'Not specified'}
+Section Description: ${sectionInfo.sectionDescription}
 Target Audience: ${sectionInfo.targetAudience || 'General audience'}
 Expected Length: ${sectionInfo.estimatedLength || 'As needed for comprehensive coverage'}
 
 Document Flow:
-${sectionInfo.otherSections.length > 0 
-  ? `Previous Section: "${sectionInfo.otherSections[sectionInfo.otherSections.length - 1]?.title}"
-Next Section: "${sectionInfo.otherSections[0]?.title}"`
-  : 'This is a standalone section'}
+${previousSection 
+  ? `Previous Section: "${previousSection.title}"}
+Content: ${previousSection.content || 'Not yet written'}`
+  : 'This is the first section'}
+${nextSection 
+  ? `\nNext Section: "${nextSection.title}"}
+Content: ${nextSection.content || 'Not yet written'}`
+  : '\nThis is the last section'}
+
+Current Draft Content:
+${sectionInfo.content ? `\nExisting Draft:\n${sectionInfo.content}` : 'No existing draft'}
 
 Key Points to Address:
 ${(sectionInfo.keyPoints || []).map(point => `• ${point}`).join('\n')}
@@ -136,27 +166,29 @@ Reference Materials:
 ${relevantContext}
 
 Writing Guidelines:
-1. Incorporate insights from the reference materials naturally
-2. Do NOT write an introduction or conclusion
-3. Start directly with the subject matter
-4. Focus on this section's specific topic
-5. Use ${domain}-specific terminology
-6. Maintain ${styleGuide} style
-7. Format with clear subheadings and lists where appropriate
+1. Use proper markdown formatting
+2. Ensure smooth transitions from the previous section's content
+3. Set up natural progression to the next section's topic
+4. NO standalone introductions or conclusions within the section
+5. Maintain consistent terminology and style with surrounding sections
+6. Use ${domain}-specific terminology
+7. Maintain ${styleGuide} style
+8. Format with clear hierarchy using markdown headings
+9. Target approximately ${sectionInfo.estimatedLength} in length
 
-Content should flow seamlessly with surrounding sections while leveraging the provided reference materials.`;
+Remember: This section is part of a larger document. Write it to flow seamlessly with surrounding sections, avoiding any redundant context that's already covered elsewhere.`;
 
       console.log("System Prompt:", systemPrompt);
       console.log("User Prompt:", userPrompt);
 
-      // Generate content
+      // Generate content with specified temperature
       const contentResponse = await this.client.chat.completions.create({
         model: this.model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.7,
+        temperature: sectionInfo.temperature ?? 0.7, // Ensure fallback
       });
 
       const generatedContent = contentResponse.choices[0].message.content || "";

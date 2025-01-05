@@ -8,6 +8,7 @@ import ContentCanvas from './content-canvas';
 import TemplateModal from './template-modal';
 import { Section, Resource } from '@/app/lib/types';
 
+
 const GenerativeOutputTool: React.FC = () => {
   // State management
   const [sections, setSections] = useState<Section[]>([]); 
@@ -20,6 +21,10 @@ const GenerativeOutputTool: React.FC = () => {
   const [selectedResources, setSelectedResources] = useState<Record<string, number[]>>({});
   const [resources, setResources] = useState<Resource[]>([]);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [documentSettings, setDocumentSettings] = useState({
+    defaultLength: 'As needed for comprehensive coverage',
+    defaultTemperature: 0.7
+  });
 
 const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
   setSelectedResources(prev => ({
@@ -64,7 +69,7 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
 
     const newSection: Section = {
       id: newId,
-      title: `Section ${newId}`, // This should now correctly reference the newId
+      title: `Section ${newId}`,
       content: '',
       strength: 0,
       description: 'New Section',
@@ -74,6 +79,7 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
       sourceOption: 'model',
       revisions: [],
       estimatedLength: '500 words',
+      temperature: 0.7
     };
 
     setSections([...sections, newSection]);
@@ -157,7 +163,7 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
       // Generate sections first if none exist
       let sectionsToGenerate = sections;
       if (!sections || sections.length === 0) {
-        sectionsToGenerate = await handleGenerateSections(documentTitle, documentPurpose);
+        sectionsToGenerate = await handleGenerateSections();
       }
       
       // Regenerate sections in order
@@ -172,42 +178,36 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
   };
 
   // Update handleGenerateSections to return a promise
-  const handleGenerateSections = async (title: string, purpose: string): Promise<Section[]> => {
+  const handleGenerateSections = async (): Promise<Section[]> => {
+    setIsGeneratingSections(true);
     try {
-      setIsGeneratingSections(true);
       const response = await fetch('/api/generate-sections', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          title, 
-          purpose 
+        body: JSON.stringify({
+          title: documentTitle,
+          purpose: documentPurpose,
+          temperature: documentSettings.defaultTemperature ?? 0.7
         }),
       });
-
+      
       if (!response.ok) {
-        throw new Error('Failed to generate sections');
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        throw new Error(errorData.error || 'Failed to generate sections');
       }
-
+      
       const data = await response.json();
+      const newSections = data.sections; // Extract sections from response
       
-      // Create new sections with all required properties
-      const newSections = data.sections.map((section: any) => ({
-        ...section,
-        isEditing: false,
-        isGenerating: false,
-        selectedSources: [],
-        sourceOption: 'model',
-        revisions: [],
-      }));
-
-      // Update state
+      if (!Array.isArray(newSections)) {
+        console.error('Invalid response format:', data);
+        throw new Error('Invalid response format from API');
+      }
+      
       setSections(newSections);
-      setDocumentTitle(title);
-      setDocumentPurpose(purpose);
-      
-      // Return the new sections directly
       return newSections;
     } catch (error) {
       console.error('Error generating sections:', error);
@@ -243,6 +243,8 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
       selectedSources: [],
       sourceOption: 'model',
       revisions: [],
+      estimatedLength: 'As needed for comprehensive coverage',
+      temperature: 0.7
     }));
 
     setSections(newSections);
@@ -273,6 +275,8 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
           onGenerateAllContent={handleGenerateAllContent}
           isGeneratingAll={isGeneratingAll}
           sections={sections}
+          documentSettings={documentSettings}
+          onSettingsChange={(updates) => setDocumentSettings(prev => ({ ...prev, ...updates }))}
         />
       </div>
 
