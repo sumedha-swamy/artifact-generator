@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Trash2, MoveVertical, RefreshCcw, Plus, FileText, Eye, Edit2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, MoveVertical, RefreshCcw, Plus, FileText, Eye, Edit2, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SourceSelect } from './source-select';
@@ -166,6 +166,58 @@ const SectionCard: React.FC<SectionCardProps> = ({
           </div>
         </div>
 
+        {/* Key Points Field */}
+        <div className="mb-4">
+          <div className="relative">
+            <div className="absolute -top-[9px] left-3 px-1.5 bg-white z-10">
+              <span className="text-sm text-gray-500 font-medium">
+                Key Points
+              </span>
+            </div>
+            <div className="w-full p-3 border border-gray-200 rounded-lg bg-white">
+              <div className="flex flex-wrap gap-2 mb-2">
+                {(section.keyPoints || []).map((point, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-full text-sm text-gray-700"
+                  >
+                    <span className="truncate">{point}</span>
+                    <button
+                      onClick={() => {
+                        const newPoints = [...(section.keyPoints || [])];
+                        newPoints.splice(index, 1);
+                        onUpdate(section.id, { keyPoints: newPoints });
+                      }}
+                      className="hover:text-gray-900"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const input = (e.target as HTMLFormElement).elements.namedItem('newKeyPoint') as HTMLInputElement;
+                  const newPoint = input.value.trim();
+                  if (newPoint) {
+                    const newPoints = [...(section.keyPoints || []), newPoint];
+                    onUpdate(section.id, { keyPoints: newPoints });
+                    input.value = '';
+                  }
+                }}
+              >
+                <input
+                  name="newKeyPoint"
+                  type="text"
+                  placeholder="Add a key point and press Enter..."
+                  className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </form>
+            </div>
+          </div>
+        </div>
+
         {/* Generation Controls - with better spacing */}
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-3">
           <div className="flex items-center gap-4">
@@ -174,17 +226,13 @@ const SectionCard: React.FC<SectionCardProps> = ({
               <label className="text-xs text-gray-500 whitespace-nowrap">
                 Length:
               </label>
-              <select
-                value={section.estimatedLength}
+              <input
+                type="text"
+                value={section.estimatedLength || '1 paragraph'}
                 onChange={(e) => handleLengthChange(e.target.value)}
                 className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="As needed for comprehensive coverage">As needed</option>
-                <option value="250 words">Short (~250w)</option>
-                <option value="500 words">Medium (~500w)</option>
-                <option value="1000 words">Long (~1000w)</option>
-                <option value="1500 words">Very Long (~1500w)</option>
-              </select>
+                placeholder="e.g., 500 words, 2 paragraphs"
+              />
             </div>
 
             {/* Temperature Control */}

@@ -78,7 +78,7 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
       selectedSources: [],
       sourceOption: 'model',
       revisions: [],
-      estimatedLength: '500 words',
+      estimatedLength: '1 paragraph',
       temperature: 0.7
     };
 
@@ -99,8 +99,8 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
 
       // Get selected sources based on sourceOption
       const sourcesToUse = section.sourceOption === 'selected' 
-        ? section.selectedSources 
-        : undefined;  // undefined means use all sources
+        ? section.selectedSources  // This should already be an array of strings
+        : [];  // Empty array if not using selected sources
 
       const response = await fetch('/api/generate-sections', {
         method: 'POST',
@@ -118,7 +118,10 @@ const handleResourceSelect = (sectionId: string, resourceIds: number[]) => {
               title: s.title,
               content: s.content
             })),
-          selectedSources: sourcesToUse
+          selectedSources: sourcesToUse,
+          temperature: section.temperature,
+          estimatedLength: section.estimatedLength,
+          keyPoints: section.keyPoints
         }),
       });
 

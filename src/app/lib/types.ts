@@ -3,19 +3,20 @@ import { LucideIcon } from 'lucide-react';
 export interface Section {
   id: string;
   title: string;
-  content: string;
   description: string;
-  objective?: string;
-  keyPoints?: string[];
-  estimatedLength: string;
-  targetAudience?: string;
+  content: string;
   strength: number;
-  isEditing: boolean;
-  isGenerating: boolean;
-  selectedSources: string[];
-  revisions: Array<{ content: string; description: string }>;
+  isEditing?: boolean;
+  isGenerating?: boolean;
   sourceOption?: string;
-  temperature: number;
+  selectedSources: string[];
+  temperature?: number;
+  estimatedLength?: string;
+  revisions?: Array<{
+    content: string;
+    description: string;
+  }>;
+  keyPoints?: string[];
 }
 
 

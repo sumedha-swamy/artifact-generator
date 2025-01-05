@@ -11,7 +11,7 @@ const AI_MODEL_ID = process.env.AI_MODEL_ID || 'gpt-4-turbo-preview';
 interface GenerateSectionsRequest {
   title: string;
   purpose: string;
-  domain?: string;
+  temperature?: number;
 }
 
 interface GenerateSectionContentRequest {
@@ -21,6 +21,9 @@ interface GenerateSectionContentRequest {
   sectionDescription: string;
   otherSections: Array<{ title: string; content: string; }>;
   selectedSources?: string[];
+  temperature?: number;
+  estimatedLength?: string;
+  keyPoints?: string[];
 }
 
 function isGenerateSectionsRequest(payload: unknown): payload is GenerateSectionsRequest {
@@ -68,20 +71,21 @@ export async function POST(request: Request) {
     // Log which type of request we think it is
     console.log('Is generate sections request:', isGenerateSectionsRequest(payload));
     console.log('Is generate section content request:', isGenerateSectionContentRequest(payload));
+    console.log('Payload:', payload);
 
     // Handle generating all sections
     if (isGenerateSectionsRequest(payload)) {
-      const { title, purpose, domain } = payload;
+      const { title, purpose, temperature } = payload;
 
       if (!title || !purpose) {
         return NextResponse.json(
-          { error: 'Title and purpose are required' },
+          { error: 'Title, purpose, and temperature are required' },
           { status: 400 }
         );
       }
 
       try {
-        const sections = await provider.generateSections(title, purpose, domain);
+        const sections = await provider.generateSections(title, purpose, temperature);
         console.log('Generated sections:', sections); // Debug log
         
         if (!Array.isArray(sections)) {
@@ -119,12 +123,11 @@ export async function POST(request: Request) {
             sectionTitle,
             sectionDescription,
             otherSections,
-            estimatedLength: 'As needed for comprehensive coverage',
-            temperature: 0.7
+            estimatedLength: payload.estimatedLength || 'As needed for comprehensive coverage',
+            temperature: payload.temperature ?? 0.7,
+            keyPoints: payload.keyPoints || [],
+            selectedSources
           },
-          'general',
-          'professional',
-          selectedSources
         );
         console.log('Provider response:', result);
         return NextResponse.json(result);

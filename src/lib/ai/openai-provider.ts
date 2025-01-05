@@ -16,13 +16,12 @@ export class OpenAIProvider implements AIProvider {
   async generateSections(
     title: string,
     purpose: string,
-    domain: string = "Product Management",
     temperature: number = 0.7
   ): Promise<Section[]> {
     try {
-      const systemPrompt = `You are an expert document architect with deep experience in ${domain}. Your specialty is creating cohesive, flowing document structures where each section naturally leads into the next, forming a single unified narrative.`;
+      const systemPrompt = `You are an expert document architect. Your specialty is creating cohesive, flowing document structures where each section naturally leads into the next, forming a single unified narrative.`;
 
-      const userPrompt = `As an expert in ${domain}, create a structured outline for a document with the following details:
+      const userPrompt = `Create a structured outline for a document with the following details:
 
 Title: ${title}
 Purpose: ${purpose}
@@ -32,7 +31,7 @@ Generate sections that form a single, cohesive document. The sections must:
 - Avoid redundant introductions or conclusions within sections
 - Share information progressively, with each section building upon previous sections
 - Maintain consistent tone and style throughout
-- Follow ${domain} industry best practices
+- Follow industry best practices
 - Cover all essential aspects of the topic
 
 Return ONLY a JSON object in this exact format:
@@ -45,10 +44,6 @@ Return ONLY a JSON object in this exact format:
       "key_points": ["string"],
       "estimated_length": "string",
       "target_audience": "string",
-      "transition_notes": {
-        "from_previous": "string",
-        "to_next": "string"
-      }
     }
   ]
 }`;
@@ -85,10 +80,9 @@ Return ONLY a JSON object in this exact format:
         title: section.title,
         description: section.description,
         objective: section.objective,
-        keyPoints: section.key_points,
-        estimatedLength: section.estimated_length,
+        keyPoints: section.key_points || [],
+        estimatedLength: section.estimated_length || '1 paragraph',
         targetAudience: section.target_audience,
-        transitionNotes: section.transition_notes || { from_previous: "", to_next: "" },
         content: "",
         strength: 100,
         isEditing: false,
@@ -106,7 +100,6 @@ Return ONLY a JSON object in this exact format:
     documentTitle: string,
     documentPurpose: string, 
     sectionInfo: SectionGenerationRequest,
-    domain: string = "general",
     styleGuide: string = "professional",
     selectedSources?: string[]
   ): Promise<SectionGenerationResponse> {
@@ -129,14 +122,14 @@ Return ONLY a JSON object in this exact format:
 Content: ${result.content}
 ---`).join('\n');
 
-      const systemPrompt = `You are a senior content specialist in ${domain} writing a section that must flow seamlessly within a larger document. Your specialty is creating content that naturally connects with surrounding sections, avoiding redundant introductions or conclusions. The section should read as if it's part of a single, cohesive document rather than a standalone piece.`;
+      const systemPrompt = `You are a senior content specialist writing a section that must flow seamlessly within a larger document. Your specialty is creating content that naturally connects with surrounding sections, avoiding redundant introductions or conclusions. The section should read as if it's part of a single, cohesive document rather than a standalone piece.`;
 
       // Find the previous and next sections
       const currentIndex = sectionInfo.otherSections.findIndex(s => s.title === sectionInfo.sectionTitle);
       const previousSection = currentIndex > 0 ? sectionInfo.otherSections[currentIndex - 1] : null;
       const nextSection = currentIndex < sectionInfo.otherSections.length - 1 ? sectionInfo.otherSections[currentIndex + 1] : null;
 
-      const userPrompt = `Write the "${sectionInfo.sectionTitle}" section of a ${domain} document, ensuring it flows naturally within the larger document.
+      const userPrompt = `Write the "${sectionInfo.sectionTitle}" section, ensuring it flows naturally within the larger document.
 
 Context:
 Document: "${documentTitle}"
@@ -171,7 +164,7 @@ Writing Guidelines:
 3. Set up natural progression to the next section's topic
 4. NO standalone introductions or conclusions within the section
 5. Maintain consistent terminology and style with surrounding sections
-6. Use ${domain}-specific terminology
+6. Use clear, precise language
 7. Maintain ${styleGuide} style
 8. Format with clear hierarchy using markdown headings
 9. Target approximately ${sectionInfo.estimatedLength} in length
@@ -194,7 +187,7 @@ Remember: This section is part of a larger document. Write it to flow seamlessly
       const generatedContent = contentResponse.choices[0].message.content || "";
 
       // Enhanced evaluation prompt focusing on flow and integration
-      const evaluationPrompt = `You are an expert content evaluator in ${domain}. Evaluate the given content on a scale of 1-100 based on:
+      const evaluationPrompt = `You are an expert content evaluator. Evaluate the given content on a scale of 1-100 based on:
 1. Integration with document flow (40 points)
    - No redundant introduction/conclusion
    - Natural continuation from previous section
