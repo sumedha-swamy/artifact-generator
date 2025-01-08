@@ -3,6 +3,7 @@ export interface ProcessedDocument {
   name: string;
   vector_ids: string[];
   status: 'processing' | 'completed' | 'error';
+  path?: string;
 }
 
 export interface QueryResult {

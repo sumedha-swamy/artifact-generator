@@ -15,13 +15,14 @@ import { Toggle } from "@/components/ui/toggle";
 interface SectionCardProps {
   section: Section;
   isActive: boolean;
-  availableResources: Resource[]; // Add this prop
+  availableResources: Resource[];
   onUpdate: (id: string, updates: Partial<Section>) => void;
   onDelete: (id: string) => void;
   onRegenerate: (id: string) => void;
   onDragStart: (e: React.DragEvent<Element>, id: string) => void;
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  onTitleChange: (title: string) => void;
 }
 
 const SectionCard: React.FC<SectionCardProps> = ({
@@ -33,7 +34,8 @@ const SectionCard: React.FC<SectionCardProps> = ({
   onRegenerate,
   onDragStart,
   onDragOver,
-  onDrop
+  onDrop,
+  onTitleChange
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const revisions = section.revisions || [];

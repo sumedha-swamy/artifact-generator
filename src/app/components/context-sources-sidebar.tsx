@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, FileText, Link, Trash, ChevronDown, Loader2 } from 'lucide-react';
 import { DocumentService } from '@/lib/api/document-service';
 import { AxiosError } from 'axios';
@@ -185,6 +185,28 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
     onSelectResources(updatedSources.filter(source => source.selected));
   };
 
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        const documents = await DocumentService.getAllDocuments();
+        setSources(documents.map(doc => ({
+          id: doc.id,
+          name: doc.name,
+          path: doc.path || '',
+          status: doc.status
+        })));
+      } catch (error) {
+        console.error('Error loading documents:', error);
+        // Only show alert for unexpected errors, not for empty document list
+        if ((error as AxiosError).response?.status !== 404) {
+          alert('Failed to load existing documents');
+        }
+      }
+    };
+
+    loadDocuments();
+  }, []);
+
   return (
     <div className="w-64 flex-shrink-0 bg-white border-r border-gray-300 overflow-y-auto">
       <div className="p-4">
@@ -220,47 +242,42 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
             <form 
               onSubmit={async (e) => {
                 e.preventDefault();
+                console.log("Form submitted");
                 const url = urlInput.trim();
                 
-                if (!url) return;
-
-                // Add temporary source with processing status
-                const tempId = Date.now();
-                setSources(prev => [...prev, {
-                  id: tempId,
-                  name: new URL(url).hostname,
-                  path: url,
-                  status: 'processing'
-                }]);
+                // Add http:// if no protocol is specified
+                const processUrl = url.startsWith('http') ? url : `https://${url}`;
 
                 try {
-                  const processedDoc = await DocumentService.processUrl(url);
-                  // Replace temporary source with processed document
+                  const tempId = Date.now();
+                  setSources(prev => [...prev, {
+                    id: tempId,
+                    name: new URL(processUrl).hostname,
+                    path: processUrl,
+                    status: 'processing'
+                  }]);
+
+                  const processedDoc = await DocumentService.processUrl(processUrl);
                   setSources(prev => prev.map(source => 
                     source.id === tempId ? {
                       ...processedDoc,
-                      path: url,  // Add the missing path property
+                      path: processUrl,
                       status: 'completed'
                     } : source
                   ));
                 } catch (error) {
-                  console.error('Error processing URL:', error);
-                  setSources(prev => prev.map(source => 
-                    source.id === tempId ? { ...source, status: 'error' } : source
-                  ));
                   alert('Failed to process URL. Please check the URL and try again.');
                 }
 
-                // Clear input
                 setUrlInput('');
                 setShowUrlInput(false);
               }}
             >
               <input
-                type="url"
+                type="text"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="Enter URL and press Enter"
+                placeholder="Enter URL (e.g., example.com)"
                 className="w-full p-2 border border-gray-300 rounded-lg text-sm mt-2"
                 autoFocus
               />

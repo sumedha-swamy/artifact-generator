@@ -57,4 +57,11 @@ export class DocumentService {
     );
     return response.data;
   }
+
+  static async getAllDocuments(): Promise<ProcessedDocument[]> {
+    const response = await axios.get<ProcessedDocument[]>(
+      `${this.API_BASE_URL}/documents`
+    );
+    return response.data;
+  }
 } 

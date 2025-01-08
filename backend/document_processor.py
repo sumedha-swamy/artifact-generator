@@ -12,6 +12,7 @@ import uuid
 from config import OPENAI_API_KEY
 from urllib.parse import urlparse
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,9 @@ class DocumentProcessor:
     def __init__(self):
         self.embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
         self.vector_store = None
-        self.document_map = {}  # Maps document IDs to their vector IDs
+        self.document_map = {}
+        self.storage_dir = "storage"
+        self.load_persistent_storage()
 
     async def process_document(self, file: UploadFile) -> Dict:
         # Create a temporary file to store the upload
@@ -43,7 +46,7 @@ class DocumentProcessor:
             docs = loader.load()
             splitter = RecursiveCharacterTextSplitter(
                 chunk_size=1000,
-                chunk_overlap=200
+                chunk_overlap=400
             )
             split_docs = splitter.split_documents(docs)
 
@@ -66,6 +69,9 @@ class DocumentProcessor:
                 'vector_ids': vector_ids,
                 'name': file.filename
             }
+
+            # Save changes to persistent storage
+            self.save_persistent_storage()
 
             return {
                 'id': doc_id,
@@ -96,8 +102,6 @@ class DocumentProcessor:
 
         # Remove vectors from FAISS store
         if self.vector_store is not None:
-            # FAISS doesn't support direct deletion, so we need to rebuild the index
-            # excluding the vectors we want to delete
             all_docs = self.vector_store.similarity_search("", k=self.vector_store.index.ntotal)
             remaining_docs = [
                 doc for doc in all_docs 
@@ -105,14 +109,15 @@ class DocumentProcessor:
             ]
             
             if remaining_docs:
-                # Rebuild index with remaining documents
                 self.vector_store = FAISS.from_documents(remaining_docs, self.embeddings)
             else:
-                # If no documents left, reset the vector store
                 self.vector_store = None
 
         # Remove document from our mapping
         del self.document_map[doc_id]
+        
+        # Save changes to disk
+        self.save_persistent_storage()
 
     async def query(self, query: str, top_k: int = 3, source_filter: Optional[List[str]] = None) -> List[Dict]:
         try:
@@ -198,3 +203,46 @@ class DocumentProcessor:
         except Exception as e:
             logger.error(f"Error processing URL: {str(e)}")
             raise 
+
+    async def get_all_documents(self) -> List[Dict]:
+        """Return all documents in storage."""
+        # Simply return an empty list if no documents exist
+        return [
+            {
+                'id': doc_id,
+                'name': info['name'],
+                'status': 'completed',
+                'path': info.get('url', '')
+            }
+            for doc_id, info in self.document_map.items()
+        ] 
+
+    def save_persistent_storage(self):
+        """Save FAISS index and document mappings to disk."""
+        # Create storage directory if it doesn't exist
+        os.makedirs(self.storage_dir, exist_ok=True)
+        
+        # Save document mappings
+        mapping_path = os.path.join(self.storage_dir, "document_map.json")
+        with open(mapping_path, 'w') as f:
+            json.dump(self.document_map, f)
+        
+        # Save FAISS index
+        if self.vector_store is not None:
+            index_path = os.path.join(self.storage_dir, "faiss_index")
+            self.vector_store.save_local(index_path) 
+
+    def load_persistent_storage(self):
+        """Load persisted FAISS index and document mappings."""
+        os.makedirs(self.storage_dir, exist_ok=True)
+        
+        # Load document mappings
+        mapping_path = os.path.join(self.storage_dir, "document_map.json")
+        if os.path.exists(mapping_path):
+            with open(mapping_path, 'r') as f:
+                self.document_map = json.load(f)
+        
+        # Load FAISS index
+        index_path = os.path.join(self.storage_dir, "faiss_index")
+        if os.path.exists(index_path):
+            self.vector_store = FAISS.load_local(index_path, self.embeddings) 
