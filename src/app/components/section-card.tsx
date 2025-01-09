@@ -10,6 +10,7 @@ import { ResourceSelectDialog } from './resource-select-dialog';
 import { Section, Resource } from '@/app/lib/types';
 import ReactMarkdown from 'react-markdown';
 import { Toggle } from "@/components/ui/toggle";
+import remarkGfm from 'remark-gfm';
 
 
 interface SectionCardProps {
@@ -181,16 +182,16 @@ const SectionCard: React.FC<SectionCardProps> = ({
                 {(section.keyPoints || []).map((point, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-full text-sm text-gray-700"
+                    className="flex items-center gap-1.5 max-w-full px-2.5 py-1.5 bg-gray-100 rounded-full text-sm text-gray-700 break-words"
                   >
-                    <span className="truncate">{point}</span>
+                    <span className="truncate flex-1 min-w-0">{point}</span>
                     <button
                       onClick={() => {
                         const newPoints = [...(section.keyPoints || [])];
                         newPoints.splice(index, 1);
                         onUpdate(section.id, { keyPoints: newPoints });
                       }}
-                      className="hover:text-gray-900"
+                      className="flex-shrink-0 hover:text-gray-900 ml-1"
                     >
                       <X size={14} />
                     </button>
@@ -289,7 +290,12 @@ const SectionCard: React.FC<SectionCardProps> = ({
           
           {isMarkdownPreview ? (
             <div className="prose prose-sm max-w-none p-3 border border-gray-200 rounded-lg bg-white min-h-[8rem] overflow-y-auto">
-              <ReactMarkdown>{section.content}</ReactMarkdown>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                className="prose-table:table-auto prose-table:w-full prose-td:border prose-td:p-2 prose-th:border prose-th:p-2"
+              >
+                {section.content}
+              </ReactMarkdown>
             </div>
           ) : (
             <textarea 

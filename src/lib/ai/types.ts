@@ -3,12 +3,26 @@ import { Section } from '@/app/lib/types';
 export type AIProviderType = 'openai' | 'anthropic' | 'bedrock';
 
 export interface AIProvider {
-  generateSections(title: string, purpose: string, temperature?: number): Promise<Section[]>;
   generateSection(
-    documentTitle: string,
-    documentPurpose: string,
-    sectionInfo: SectionGenerationRequest
+    jsonString: string,
+    temperature: number,
+    estimatedLength: string
   ): Promise<SectionGenerationResponse>;
+  generatePlan(title: string, purpose: string): Promise<Section[]>;
+  generateInitialPlan(title: string, purpose: string, references?: string[], dataSources?: string[]): Promise<string>;
+  refinePlan(currentPlan: string, feedback: string): Promise<string>;
+  finalizePlanToJson(finalPlan: string): Promise<Section[]>;
+  evaluateDocument(
+    title: string,
+    purpose: string,
+    sections: Array<{ title: string; content: string; description: string }>
+  ): Promise<EvaluationResult>;
+  improveSection(
+    currentContent: string,
+    sectionDescription: string,
+    improvements: string[],
+    keyPoints: string[]
+  ): Promise<string>;
 }
 
 export interface SectionGenerationRequest {
@@ -27,6 +41,20 @@ export interface SectionGenerationRequest {
 export interface SectionGenerationResponse {
   content: string;
   strength: number;
+}
+
+export interface EvaluationResult {
+  overallScore: number;
+  categories: {
+    readability: number;
+    relevance: number;
+    completeness: number;
+    factualSupport: number;
+    persuasiveness: number;
+    consistency: number;
+  };
+  improvements: string[];
+  detailedFeedback: string;
 }
 
 

@@ -8,11 +8,7 @@ const AI_API_KEY = process.env.OPENAI_API_KEY || '';
 const AWS_REGION = process.env.AWS_REGION || '';
 const AI_MODEL_ID = process.env.AI_MODEL_ID || 'gpt-4-turbo-preview';
 
-interface GenerateSectionsRequest {
-  title: string;
-  purpose: string;
-  temperature?: number;
-}
+
 
 interface GenerateSectionContentRequest {
   documentTitle: string;
@@ -26,14 +22,11 @@ interface GenerateSectionContentRequest {
   keyPoints?: string[];
 }
 
-function isGenerateSectionsRequest(payload: unknown): payload is GenerateSectionsRequest {
-  const p = payload as GenerateSectionsRequest;
-  return (
-    typeof p.title === 'string' &&
-    typeof p.purpose === 'string' &&
-    !('sectionTitle' in p)
-  );
+interface GeneratePlanRequest {
+  title: string;
+  purpose: string;
 }
+
 
 function isGenerateSectionContentRequest(payload: unknown): payload is GenerateSectionContentRequest {
   const p = payload as GenerateSectionContentRequest;
@@ -44,6 +37,14 @@ function isGenerateSectionContentRequest(payload: unknown): payload is GenerateS
     typeof p.sectionDescription === 'string' &&
     Array.isArray(p.otherSections) &&
     (!p.selectedSources || Array.isArray(p.selectedSources))
+  );
+}
+
+function isGeneratePlanRequest(payload: unknown): payload is GeneratePlanRequest {
+  const p = payload as GeneratePlanRequest;
+  return (
+    typeof p.title === 'string' &&
+    typeof p.purpose === 'string'
   );
 }
 
@@ -68,25 +69,21 @@ export async function POST(request: Request) {
     const provider = AIProviderFactory.createProvider(AI_PROVIDER, config);
     console.log('Provider type:', AI_PROVIDER); // Debug log
 
-    // Log which type of request we think it is
-    console.log('Is generate sections request:', isGenerateSectionsRequest(payload));
-    console.log('Is generate section content request:', isGenerateSectionContentRequest(payload));
-    console.log('Payload:', payload);
 
-    // Handle generating all sections
-    if (isGenerateSectionsRequest(payload)) {
-      const { title, purpose, temperature } = payload;
+    // Handle generating plan
+    if (isGeneratePlanRequest(payload)) {
+      const { title, purpose } = payload;
 
       if (!title || !purpose) {
         return NextResponse.json(
-          { error: 'Title, purpose, and temperature are required' },
+          { error: 'Title and purpose are required' },
           { status: 400 }
         );
       }
 
       try {
-        const sections = await provider.generateSections(title, purpose, temperature);
-        console.log('Generated sections:', sections); // Debug log
+        const sections = await provider.generatePlan(title, purpose);
+        console.log('Generated plan:', sections);
         
         if (!Array.isArray(sections)) {
           console.error('Provider returned invalid format:', sections);
@@ -95,14 +92,14 @@ export async function POST(request: Request) {
         
         return NextResponse.json({ sections });
       } catch (error) {
-        console.error('Error generating sections:', error);
+        console.error('Error generating plan:', error);
         throw error;
       }
     }
     
     // Handle generating single section content
     else if (isGenerateSectionContentRequest(payload)) {
-      const { documentTitle, documentPurpose, sectionTitle, sectionDescription, otherSections, selectedSources } = payload;
+      const { documentTitle, documentPurpose, sectionTitle, sectionDescription, otherSections, selectedSources, temperature, estimatedLength, keyPoints } = payload;
       
       console.log('About to call provider.generateSection with:', {
         documentTitle,
@@ -116,21 +113,21 @@ export async function POST(request: Request) {
       });
 
       try {
-        const result = await provider.generateSection(
-          documentTitle,
-          documentPurpose,
-          {
+        const content = await provider.generateSection(
+          JSON.stringify({
+            documentTitle,
+            documentPurpose,
             sectionTitle,
             sectionDescription,
             otherSections,
-            estimatedLength: payload.estimatedLength || 'As needed for comprehensive coverage',
-            temperature: payload.temperature ?? 0.7,
-            keyPoints: payload.keyPoints || [],
-            selectedSources
-          },
+            selectedSources,
+            keyPoints
+          }),
+          Number(temperature ?? 0.7),
+          estimatedLength || 'As needed for comprehensive coverage'
         );
-        console.log('Provider response:', result);
-        return NextResponse.json(result);
+        console.log('Provider response:', content);
+        return NextResponse.json(content);
       } catch (error) {
         console.error('Error from provider:', error);
         throw error;

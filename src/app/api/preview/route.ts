@@ -1,19 +1,27 @@
 import { NextResponse } from 'next/server';
 
-// Add this type declaration at the top of the file
 declare global {
   var previewData: Record<string, any>;
 }
 
 export async function POST(request: Request) {
   try {
-    const data = await request.json();
-    // Store the data in the session or a temporary storage
-    // For this example, we'll use a simple sessionStorage approach
+    const { title, sections } = await request.json();
+    
+    // Create preview data with section titles and contents
+    const previewData = {
+      title,
+      content: sections
+        .map((section: { title: string; content: string }) => 
+          `## ${section.title}\n\n${section.content}`
+        )
+        .filter(Boolean)
+        .join('\n\n')
+    };
+
     const previewId = Date.now().toString();
-    // You might want to use a proper database or cache system in production
     global.previewData = global.previewData || {};
-    global.previewData[previewId] = data;
+    global.previewData[previewId] = previewData;
 
     return NextResponse.json({ previewId });
   } catch (error) {

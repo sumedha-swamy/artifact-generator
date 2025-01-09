@@ -208,10 +208,12 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
   }, []);
 
   return (
-    <div className="w-64 flex-shrink-0 bg-white border-r border-gray-300 overflow-y-auto">
-      <div className="p-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Resources</h2>
-        
+    <div className="h-full flex flex-col">
+      <div className="p-4 border-b border-gray-200 bg-gray-50">
+        <h2 className="text-lg font-semibold text-gray-800">Resources</h2>
+      </div>
+
+      <div className="flex-1 p-4">
         {/* File upload buttons */}
         <div className="space-y-2">
           <div className="flex">
@@ -219,11 +221,8 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
               className={`flex-grow bg-blue-600 text-white rounded-l-lg p-2 flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors cursor-pointer ${
                 isDragOver ? 'bg-blue-700' : ''
               }`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragOver(true);
-              }}
-              onDragLeave={() => setIsDragOver(false)}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
               <Plus size={20} /> Add Resource
@@ -239,46 +238,44 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
 
           {/* URL input field */}
           {showUrlInput && (
-            <form 
-              onSubmit={async (e) => {
-                e.preventDefault();
-                console.log("Form submitted");
-                const url = urlInput.trim();
-                
-                // Add http:// if no protocol is specified
-                const processUrl = url.startsWith('http') ? url : `https://${url}`;
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              console.log("Form submitted");
+              const url = urlInput.trim();
+              
+              // Add http:// if no protocol is specified
+              const processUrl = url.startsWith('http') ? url : `https://${url}`;
 
-                try {
-                  const tempId = Date.now();
-                  setSources(prev => [...prev, {
-                    id: tempId,
-                    name: new URL(processUrl).hostname,
+              try {
+                const tempId = Date.now();
+                setSources(prev => [...prev, {
+                  id: tempId,
+                  name: new URL(processUrl).hostname,
+                  path: processUrl,
+                  status: 'processing'
+                }]);
+
+                const processedDoc = await DocumentService.processUrl(processUrl);
+                setSources(prev => prev.map(source => 
+                  source.id === tempId ? {
+                    ...processedDoc,
                     path: processUrl,
-                    status: 'processing'
-                  }]);
+                    status: 'completed'
+                  } : source
+                ));
+              } catch (error) {
+                alert('Failed to process URL. Please check the URL and try again.');
+              }
 
-                  const processedDoc = await DocumentService.processUrl(processUrl);
-                  setSources(prev => prev.map(source => 
-                    source.id === tempId ? {
-                      ...processedDoc,
-                      path: processUrl,
-                      status: 'completed'
-                    } : source
-                  ));
-                } catch (error) {
-                  alert('Failed to process URL. Please check the URL and try again.');
-                }
-
-                setUrlInput('');
-                setShowUrlInput(false);
-              }}
-            >
+              setUrlInput('');
+              setShowUrlInput(false);
+            }}>
               <input
                 type="text"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 placeholder="Enter URL (e.g., example.com)"
-                className="w-full p-2 border border-gray-300 rounded-lg text-sm mt-2"
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                 autoFocus
               />
             </form>

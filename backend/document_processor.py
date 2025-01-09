@@ -9,7 +9,7 @@ from langchain_community.vectorstores import FAISS
 from fastapi import UploadFile
 import asyncio
 import uuid
-from config import OPENAI_API_KEY
+from config import AI_API_KEY
 from urllib.parse import urlparse
 import logging
 import json
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class DocumentProcessor:
     def __init__(self):
-        self.embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+        self.embeddings = OpenAIEmbeddings(openai_api_key=AI_API_KEY)
         self.vector_store = None
         self.document_map = {}
         self.storage_dir = "storage"
@@ -245,4 +245,14 @@ class DocumentProcessor:
         # Load FAISS index
         index_path = os.path.join(self.storage_dir, "faiss_index")
         if os.path.exists(index_path):
-            self.vector_store = FAISS.load_local(index_path, self.embeddings) 
+            self.vector_store = FAISS.load_local(
+                index_path, 
+                self.embeddings,
+                allow_dangerous_deserialization=True
+            )
+        else:
+            # Initialize empty vector store if no existing index
+            self.vector_store = FAISS.from_texts(
+                [""], 
+                self.embeddings
+            ) 

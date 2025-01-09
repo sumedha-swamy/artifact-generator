@@ -10,9 +10,9 @@ interface TopBarProps {
   documentPurpose: string;
   onPurposeChange: (purpose: string) => void;
   onTitleChange: (title: string) => void;
-  onGenerateSections: () => void;
+  onGeneratePlan: () => void;
   onGenerateAllContent: () => void;
-  isGenerating: boolean;
+  isPlanning: boolean;
   sections: Section[];
   isGeneratingAll: boolean;
   documentSettings?: {
@@ -20,6 +20,8 @@ interface TopBarProps {
     defaultTemperature: number;
   };
   onSettingsChange: (updates: Partial<{ defaultLength: string; defaultTemperature: number }>) => void;
+  isPlanFinalized: boolean;
+  onReset?: () => void;
 }
 
 const TopBar: React.FC<TopBarProps> = ({ 
@@ -27,13 +29,15 @@ const TopBar: React.FC<TopBarProps> = ({
   documentPurpose, 
   onPurposeChange,
   onTitleChange,
-  onGenerateSections,
+  onGeneratePlan,
   onGenerateAllContent,
-  isGenerating,
+  isPlanning,
   sections,
   isGeneratingAll,
   documentSettings,
   onSettingsChange,
+  isPlanFinalized,
+  onReset
 }) => {
   const handleTitleChange = (newTitle: string) => {
     onTitleChange(newTitle);
@@ -43,11 +47,14 @@ const TopBar: React.FC<TopBarProps> = ({
     onPurposeChange(newPurpose);
   };
 
-  const handleGenerateSectionsClick = async () => {
+  const handleGeneratePlanClick = async () => {
     try {
-      onGenerateSections();
+      if (onReset) {
+        onReset();
+      }
+      onGeneratePlan();
     } catch (error) {
-      console.error('Error generating sections:', error);
+      console.error('Error generating plan:', error);
     }
   };
 
@@ -145,25 +152,28 @@ const TopBar: React.FC<TopBarProps> = ({
           {/* Action Buttons */}
           <div className="flex gap-2">
             <button 
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 ${
-                isGenerating ? 'opacity-75 cursor-not-allowed' : ''
-              }`}
-              onClick={handleGenerateSectionsClick}
-              disabled={isGenerating}
-            >
-              <Wand2 size={14} className={isGenerating ? 'animate-spin' : ''} />
-              {isGenerating ? 'Planning...' : 'Plan'}
-            </button>
-            <button 
               className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 ${
-                isGenerating || isGeneratingAll ? 'opacity-75 cursor-not-allowed' : ''
+                isPlanning ? 'opacity-75 cursor-not-allowed' : ''
               }`}
-              onClick={handleGenerateAllContent}
-              disabled={isGenerating || isGeneratingAll}
+              onClick={handleGeneratePlanClick}
+              disabled={isPlanning}
             >
-              <Wand2 size={14} className={isGeneratingAll ? 'animate-spin' : ''} />
-              {isGeneratingAll ? 'Generating...' : 'Generate'}
+              <Wand2 size={14} className={isPlanning ? 'animate-spin' : ''} />
+              {isPlanning ? 'Planning...' : 'Plan'}
             </button>
+
+            {isPlanFinalized && (
+              <button 
+                className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 ${
+                  isGeneratingAll ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+                onClick={handleGenerateAllContent}
+                disabled={isGeneratingAll}
+              >
+                <Wand2 size={14} className={isGeneratingAll ? 'animate-spin' : ''} />
+                {isGeneratingAll ? 'Generating...' : 'Generate'}
+              </button>
+            )}
           </div>
         </div>
       </div>

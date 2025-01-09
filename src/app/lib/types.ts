@@ -14,7 +14,9 @@ export interface Section {
   estimatedLength?: string;
   revisions?: Array<{
     content: string;
-    description: string;
+    description?: string;
+    timestamp?: string;
+    type?: string;
   }>;
   keyPoints?: string[];
 }
