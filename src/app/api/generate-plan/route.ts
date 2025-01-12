@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
 import { AIProviderFactory } from '@/lib/ai/factory';
-import { AIProviderType } from '@/lib/ai/types';
-
-// Load environment variables
-const AI_PROVIDER = (process.env.AI_PROVIDER as AIProviderType) || 'openai';
-const AI_API_KEY = process.env.OPENAI_API_KEY || '';
-const AWS_REGION = process.env.AWS_REGION || '';
-const AI_MODEL_ID = process.env.AI_MODEL_ID || 'gpt-4-turbo-preview';
+import { AIProviderType, SectionGenerationRequest } from '@/lib/ai/types';
+import { AI_PROVIDER, AI_API_KEY } from '@/lib/config';
 
 
 
@@ -51,24 +46,30 @@ function isGeneratePlanRequest(payload: unknown): payload is GeneratePlanRequest
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
-    console.log('Received payload:', payload); // Debug log
-    console.log('API Key present:', !!AI_API_KEY); // Debug log
-    
-    const config = {
+    const {
+      title,
+      purpose,
+      selectedSources,
+      references = [],
+      dataSources = []
+    } = payload;
+
+    const provider = AIProviderFactory.createProvider(AI_PROVIDER, {
       apiKey: AI_API_KEY,
-      region: AWS_REGION,
-      modelId: AI_MODEL_ID,
-    };
-    
-    // Verify config
-    if (!config.apiKey) {
-      console.error('Missing API key in configuration');
-      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+    });
+
+    // If it's a PRFAQ, use the specialized method
+    const documentType = await provider.runAgentOrchestrator(title, purpose);
+    if (documentType.type === "prfaq") {
+      const plan = await provider.generatePRFAQPlan(
+        title,
+        documentType.description ?? purpose,
+        selectedSources,
+        references,
+        dataSources
+      );
+      return NextResponse.json({ plan });
     }
-
-    const provider = AIProviderFactory.createProvider(AI_PROVIDER, config);
-    console.log('Provider type:', AI_PROVIDER); // Debug log
-
 
     // Handle generating plan
     if (isGeneratePlanRequest(payload)) {
@@ -83,8 +84,7 @@ export async function POST(request: Request) {
 
       try {
         const sections = await provider.generatePlan(title, purpose);
-        console.log('Generated plan:', sections);
-        
+
         if (!Array.isArray(sections)) {
           console.error('Provider returned invalid format:', sections);
           throw new Error('Invalid response format from AI provider');
@@ -96,37 +96,22 @@ export async function POST(request: Request) {
         throw error;
       }
     }
-    
     // Handle generating single section content
     else if (isGenerateSectionContentRequest(payload)) {
       const { documentTitle, documentPurpose, sectionTitle, sectionDescription, otherSections, selectedSources, temperature, estimatedLength, keyPoints } = payload;
-      
-      console.log('About to call provider.generateSection with:', {
-        documentTitle,
-        documentPurpose,
-        sectionInfo: {
-          sectionTitle,
-          sectionDescription,
-          otherSections
-        },
-        selectedSources
-      });
 
       try {
-        const content = await provider.generateSection(
-          JSON.stringify({
-            documentTitle,
-            documentPurpose,
-            sectionTitle,
-            sectionDescription,
-            otherSections,
-            selectedSources,
-            keyPoints
-          }),
-          Number(temperature ?? 0.7),
-          estimatedLength || 'As needed for comprehensive coverage'
-        );
-        console.log('Provider response:', content);
+        const sectionRequest: SectionGenerationRequest = {
+          sectionTitle,
+          sectionDescription,
+          objective: documentPurpose,
+          keyPoints,
+          estimatedLength: estimatedLength || 'As needed for comprehensive coverage',
+          temperature: Number(temperature ?? 0.7),
+          documentType: 'Generic'
+        };
+
+        const content = await provider.generateSection(sectionRequest);
         return NextResponse.json(content);
       } catch (error) {
         console.error('Error from provider:', error);
@@ -142,19 +127,9 @@ export async function POST(request: Request) {
       );
     }
   } catch (error) {
-    console.error('Error in generate-sections API:', error);
-    if (error instanceof Error) {
-      console.error('Error details:', {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      });
-    }
+    console.error('Error in generate-plan API:', error);
     return NextResponse.json(
-      { 
-        error: error instanceof Error ? error.message : 'Failed to generate content',
-        details: error instanceof Error ? error.stack : undefined
-      },
+      { error: 'Failed to generate plan' },
       { status: 500 }
     );
   }

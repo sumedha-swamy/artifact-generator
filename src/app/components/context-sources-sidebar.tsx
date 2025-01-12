@@ -240,7 +240,6 @@ const ContextSourcesSidebar: React.FC<ContextSourcesSidebarProps> = ({ onSelectR
           {showUrlInput && (
             <form onSubmit={async (e) => {
               e.preventDefault();
-              console.log("Form submitted");
               const url = urlInput.trim();
               
               // Add http:// if no protocol is specified

@@ -16,7 +16,7 @@ interface ContentCanvasProps {
   onSectionUpdate: (sectionId: string, data: Partial<Section>) => void;
   onSectionDelete: (sectionId: string) => void;
   onSectionAdd: () => void;
-  onSectionRegenerate: (sectionId: string) => void;
+  onSectionRegenerate: (sectionId: string, settings: { temperature: number; estimatedLength: string }) => Promise<void>;
   onPurposeChange: (purpose: string) => void;
   onTitleChange: (title: string) => void;
 }

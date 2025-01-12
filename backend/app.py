@@ -39,14 +39,20 @@ class QueryContextRequest(BaseModel):
     content: str
     selectedSources: Optional[List[str]] = None
 
-@app.post("/api/documents/process", response_model=ProcessedDocument)
+@app.get("/api/documents")
+async def get_documents():
+    try:
+        return await doc_processor.get_all_documents()
+    except Exception as e:
+        logger.error(f"Error getting documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/documents/process")
 async def process_document(file: UploadFile):
-    logger.debug(f"Processing document: {file.filename}")
     try:
         result = await doc_processor.process_document(file)
-        logger.debug(f"Document processed successfully: {result}")
         return result
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Error processing document: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -64,23 +70,13 @@ async def delete_document(doc_id: int):
         logger.error(f"Error deleting document: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/query")
-async def query_documents(query: str, top_k: int = 3):
-    logger.debug(f"Querying documents with: {query}")
-    try:
-        results = await doc_processor.query(query, top_k)
-        logger.debug(f"Query returned {len(results)} results")
-        return results
-    except Exception as e:
-        logger.error(f"Error querying documents: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/api/documents/process-url", response_model=ProcessedDocument)
 async def process_url(request: URLRequest):
     try:
         result = await doc_processor.process_url(str(request.url))
         return result
-    except Exception as e:
+    except ValueError as e:
+        logger.error(f"Error processing URL: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/query-context")

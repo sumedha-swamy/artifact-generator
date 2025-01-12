@@ -5,6 +5,7 @@ import time
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader, WebBaseLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
+from langchain_community.embeddings import BedrockEmbeddings
 from langchain_community.vectorstores import FAISS
 from fastapi import UploadFile
 import asyncio
@@ -18,7 +19,22 @@ logger = logging.getLogger(__name__)
 
 class DocumentProcessor:
     def __init__(self):
-        self.embeddings = OpenAIEmbeddings(openai_api_key=AI_API_KEY)
+        # Get embedding type from environment
+        embedding_provider = os.getenv('EMBEDDING_PROVIDER', 'openai').lower()
+        
+        # Initialize embeddings based on provider
+        if embedding_provider == 'openai':
+            OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+            self.embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+        elif embedding_provider == 'bedrock':
+            self.embeddings = BedrockEmbeddings(
+                credentials_profile_name=os.getenv('AWS_PROFILE'),
+                region_name=os.getenv('AWS_REGION', 'us-east-1'),
+                model_id="amazon.titan-embed-text-v1"
+            )
+        else:
+            raise ValueError(f"Unsupported embedding provider: {embedding_provider}")
+            
         self.vector_store = None
         self.document_map = {}
         self.storage_dir = "storage"
@@ -55,6 +71,7 @@ class DocumentProcessor:
             for doc in split_docs:
                 vector_id = str(uuid.uuid4())
                 doc.metadata['vector_id'] = vector_id
+                doc.metadata['source_url'] = file.filename
                 vector_ids.append(vector_id)
 
             # Initialize or update vector store
@@ -127,7 +144,7 @@ class DocumentProcessor:
             # If source filter is provided, use it to filter results
             search_kwargs = {}
             if source_filter:
-                search_kwargs["filter"] = {"source": {"$in": source_filter}}
+                search_kwargs["filter"] = {"source_url": {"$in": source_filter}}
 
             # Perform the search
             results = self.vector_store.similarity_search_with_score(

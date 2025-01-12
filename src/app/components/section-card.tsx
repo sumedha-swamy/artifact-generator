@@ -19,7 +19,7 @@ interface SectionCardProps {
   availableResources: Resource[];
   onUpdate: (id: string, updates: Partial<Section>) => void;
   onDelete: (id: string) => void;
-  onRegenerate: (id: string) => void;
+  onRegenerate: (id: string, settings: { temperature: number; estimatedLength: string }) => Promise<void>;
   onDragStart: (e: React.DragEvent<Element>, id: string) => void;
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -101,6 +101,15 @@ const SectionCard: React.FC<SectionCardProps> = ({
     onUpdate(section.id, { estimatedLength: value });
   };
 
+  const handleRegenerate = () => {
+    // Ensure we have valid values before regeneration
+    const sectionSettings = {
+      temperature: section.temperature ?? 0.7,
+      estimatedLength: section.estimatedLength || 'medium'
+    };
+    onRegenerate(section.id, sectionSettings);
+  };
+
   return (
     <Card 
       className={`bg-white rounded-lg shadow-[0_4px_8px_rgba(0,0,0,0.06)] ${
@@ -110,7 +119,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
       onDrop={onDrop}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 py-3 bg-gray-50 rounded-t-lg border-b">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
           <div
             draggable
             onDragStart={(e) => onDragStart(e, section.id)}
@@ -140,12 +149,20 @@ const SectionCard: React.FC<SectionCardProps> = ({
               {section.title}
             </CardTitle>
           )}
+          <div 
+            className="ml-auto flex items-center gap-2"
+            title="Content strength score based on clarity, comprehensiveness, and quality"
+          >
+            <span className="text-sm text-gray-500">
+              Strength: {getStrengthDisplay()}
+            </span>
+          </div>
         </div>
 
         {/* Delete button */}
         <button
           onClick={() => onDelete(section.id)}
-          className="p-1 hover:bg-gray-200 rounded transition-colors"
+          className="p-1 hover:bg-gray-200 rounded transition-colors ml-4"
         >
           <Trash2 size={16} className="text-gray-400 hover:text-red-500" />
         </button>
@@ -263,7 +280,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
           {/* Generate Button */}
           <button 
             className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 rounded-md hover:bg-white transition-colors text-gray-600"
-            onClick={() => onRegenerate(section.id)}
+            onClick={handleRegenerate}
             disabled={section.isGenerating}
           >
             <RefreshCcw 

@@ -85,7 +85,7 @@ export class OpenAIProvider implements AIProvider {
     this.model = model;
   }
 
-  private async runAgentOrchestrator(title: string, purpose: string): Promise<{
+  public async runAgentOrchestrator(title: string, purpose: string): Promise<{
     type: "prfaq" | "presentation" | "generic";
     description?: string;
     topic?: string;
@@ -141,14 +141,14 @@ export class OpenAIProvider implements AIProvider {
     }
   }
 
-  public async generatePlan(title: string, purpose: string): Promise<Section[]> {
+  public async generatePlan(title: string, purpose: string, references: string[] = [], dataSources: string[] = []): Promise<string> {
     const documentType = await this.runAgentOrchestrator(title, purpose);
     
     switch (documentType.type) {
       case "prfaq":
-        return this.generatePRFAQPlan(title, documentType.description ?? title);
+        return this.generatePRFAQPlan(title, documentType.description ?? title, references, dataSources);
       case "presentation":
-        return this.generatePresentationPlan(title, documentType.topic ?? title);
+        return this.generateInitialPresentationOutline(title, documentType.topic ?? title);
       case "generic":
         return this.generateGenericPlan(documentType.query ?? title);
       default:
@@ -156,25 +156,28 @@ export class OpenAIProvider implements AIProvider {
     }
   }
 
-  public async generatePRFAQPlan(title: string, productDescription: string): Promise<Section[]> {
-    return [{
-      id: crypto.randomUUID(),
-      title: "Initial Planning",
-      description: "Please review the initial plan in the sidebar and provide feedback.",
-      content: await this.generateInitialPRFAQOutline(title, productDescription),
-      strength: 0,
-      selectedSources: [],
-      isEditing: false,
-      isGenerating: false
-    }];
-  }
-
-  public async generateInitialPRFAQOutline(
-    title: string,
-    productDescription: string,
+  public async generatePRFAQPlan(
+    title: string, 
+    productDescription: string, 
+    selectedSources?: string[],
     references: string[] = [],
     dataSources: string[] = []
   ): Promise<string> {
+    // Get relevant context first
+    let relevantContext = [];    
+    try {
+      const queryResponse = await DocumentService.queryContext({
+        description: title,
+        content: `${productDescription}\n${references.join('\n')}`,
+        selectedSources: selectedSources
+      });
+      relevantContext = queryResponse.results || [];
+    } catch (error) {
+      console.error('Error fetching context for PRFAQ plan:', error);
+      // Continue without context if there's an error
+    }
+
+    const contextStr = this.formatRelevantContext(relevantContext);
     const instructions = `You are an expert at creating detailed PRFAQ outlines and plans. 
 Your task is to create a PLANNING DOCUMENT (not the final content) for a PRFAQ about:
 Title: '${title}'
@@ -198,6 +201,9 @@ For example, instead of writing an actual executive quote, write:
 Available resources:
 References: ${JSON.stringify(references, null, 2)}
 Data sources: ${JSON.stringify(dataSources, null, 2)}
+
+CONTEXT:
+${contextStr}
 
 Your outline should follow this structure:
 <outline_structure>
@@ -313,35 +319,74 @@ Provide your response as a clear, structured outline with detailed planning note
       model: O1_MODEL,
       messages: [{ role: "user", content: instructions }],
     });
-
-    console.log("Generated PRFAQ Outline:", response.choices[0].message.content);
     return response.choices[0].message.content || "";
   }
 
+  
+
   public async generatePRFAQSections(sectionInfo: SectionGenerationRequest): Promise<SectionGenerationResponse> {
     try {
-      const systemPrompt = `You are a senior content specialist writing a section for a PRFAQ document.
-Your task is to generate content for the following section:
+      const systemPrompt = `You are a senior technical writer specializing in precise, impactful content. Your writing is:
+- Concise and direct
+- Rich in specific examples
+- Data-driven where relevant
+- Free of filler words and redundancy
+- Logically structured
+- Technically accurate
 
-Title: ${sectionInfo.sectionTitle}
-Description: ${sectionInfo.sectionDescription}
-Objective: ${sectionInfo.objective}
-Key Points: ${sectionInfo.keyPoints?.join('\n')}
-Target Length: ${sectionInfo.estimatedLength}
-Target Audience: ${sectionInfo.targetAudience}
+For FAQs:
+- Frame as clear questions with direct answers
+- Focus on one key point per FAQ
+- Provide specific examples or scenarios
+- Include technical details when relevant
 
-Generate content that:
-1. Addresses all key points
-2. Matches the specified tone and style
-3. Fits the target length
-4. Is appropriate for the target audience
-5. Achieves the stated objective`;
+For Press Release sections:
+- Use active voice
+- Lead with impact
+- Support claims with specifics
+- Maintain professional tone`;
+
+      const contextStr = this.formatRelevantContext(sectionInfo.relevantContext);
+      const userPrompt = `Generate content for section "${sectionInfo.sectionTitle}" in a ${sectionInfo.documentType}.
+
+CONTEXT
+${contextStr}
+
+EXISTING CONTENT
+Existing Content: ${sectionInfo.previousContent ? 'Improve upon this content:\n' + sectionInfo.previousContent : 'No existing content'}
+
+Previous Section: ${sectionInfo.previousSection?.title || 'None'}
+${sectionInfo.previousSection?.content ? `${sectionInfo.previousSection.content.slice(-200)}...` : ''}
+
+Next Section: ${sectionInfo.nextSection?.title || 'None'}
+${sectionInfo.nextSection?.content ? `${sectionInfo.nextSection.content.slice(0, 200)}...` : ''}
+
+REQUIREMENTS
+Purpose: ${sectionInfo.objective}
+Key Points:
+${sectionInfo.keyPoints?.map(point => `• ${point}`).join('\n')}
+Length: ${sectionInfo.estimatedLength}
+
+GUIDELINES
+1. Start directly with substance - no introductory phrases
+2. Each sentence must add value
+3. Use concrete examples and specific data
+4. Maintain flow with adjacent sections
+5. Focus on key points without deviation
+6. Avoid:
+   - Generic statements
+   - Redundant transitions
+   - Marketing fluff
+   - Obvious statements
+   - Passive voice
+
+Begin content:`;
 
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: "Generate the section content." }
+          { role: "user", content: userPrompt }
         ],
         temperature: sectionInfo.temperature ?? 0.7,
       });
@@ -350,7 +395,7 @@ Generate content that:
       
       return {
         content,
-        strength: 100 // You might want to implement a real evaluation here
+        strength: 100 // TODO: Implement real evaluation
       };
     } catch (error) {
       console.error('Error generating section:', error);
@@ -364,111 +409,88 @@ Generate content that:
     return [];
   }
 
-  private async generateGenericPlan(query: string): Promise<Section[]> {
-    // Implement generic section generation
-    // Return array of Section objects
-    return [];
+  private async generateGenericPlan(query: string): Promise<string> {
+    return `# Document Outline for: ${query}`;
   }
 
-  public async generateSection(
-    jsonString: string,
-    temperature: number,
-    estimatedLength: string
-  ): Promise<SectionGenerationResponse> {
+  private formatRelevantContext(context: any[] | undefined): string {
+    if (!context || context.length === 0) return '';
+    
+    return '\nRelevant information from reference documents:\n' + 
+      context.map(item => (
+        `From ${item.metadata.source_url}:\n${item.content}`
+      )).join('\n\n');
+  }
+
+  public async generateSection(request: SectionGenerationRequest): Promise<SectionGenerationResponse> {
     try {
-      // Parse the JSON string into an object
-      const params = JSON.parse(jsonString);
-      const {
-        documentTitle,
-        documentPurpose,
-        sectionTitle,
-        sectionDescription,
-        otherSections,
-        selectedSources,
-        keyPoints
-      } = params;
+      const systemPrompt = `You are a senior technical writer specializing in precise, impactful content. Your writing is:
+- Concise and direct
+- Rich in specific examples
+- Data-driven where relevant
+- Free of filler words and redundancy
+- Logically structured
+- Technically accurate
 
-      console.log('Generation parameters:', {
-        length: estimatedLength,
-        temperature
-      });
-      
-      
-      // Skip context querying for now
-      const relevantContext = null;
-      //TODO: Add context querying
-//       // Get relevant context from vector store with source filter
-//       const contextResults = await DocumentService.queryContext({
-//         description: sectionDescription,
-//         content: '',
-//         selectedSources
-//       });
+For FAQs:
+- Frame as clear questions with direct answers
+- Focus on one key point per FAQ
+- Provide specific examples or scenarios
+- Include technical details when relevant
 
-//       // Format context for the prompt
-//       const relevantContext = contextResults.results
-//         .map((result: QueryResult) => `Source: ${result.metadata.source || 'Document'}
-// Content: ${result.content}
-// ---`).join('\n');
+For Press Release sections:
+- Use active voice
+- Lead with impact
+- Support claims with specifics
+- Maintain professional tone`;
 
-      const systemPrompt = `You are an expert content writer specializing in clear, precise technical documentation. 
-Your task is to write a section that will be part of a larger document. Focus on delivering the core content 
-without meta-references or transitional phrases. The content should be self-contained yet naturally fit within 
-the document's flow through consistent terminology and style.`;
-
-      // Find the previous and next sections
-      const currentIndex = otherSections.findIndex((s: { title: string }) => s.title === sectionTitle);
-      const previousSection = currentIndex > 0 ? otherSections[currentIndex - 1] : null;
-      const nextSection = currentIndex < otherSections.length - 1 ? otherSections[currentIndex + 1] : null;
-
-      const userPrompt = `Generate content for a section in "${documentTitle}".
+    const contextStr = this.formatRelevantContext(request.relevantContext);      
+    const userPrompt = `Generate content for section "${request.sectionTitle}".
 
 CONTEXT
-Purpose: ${documentPurpose}
-Section: "${sectionTitle}"
-Description: ${sectionDescription}
-Length: ${estimatedLength}
+${contextStr}
 
-KEY POINTS TO ADDRESS
-${(keyPoints || []).map((point: string) => `• ${point}`).join('\n')}
+EXISTING CONTENT
+Existing Content: ${request.previousContent ? 'Improve upon this content:\n' + request.previousContent : 'No existing content'}
 
-WRITING REQUIREMENTS
-1. Write in clear, professional language
-2. Use markdown for structure
-3. Focus purely on the subject matter
-4. Maintain consistent technical depth
-5. Be direct and concise
-6. Use active voice
-7. The FAQ section must be after the PR section and should be in the form of numbered FAQs.
-8. Avoid:
-   - Headings or section markers
-   - Meta-references ("in this section", "as mentioned above")
-   - Explicit transitions ("now that we've covered", "next we'll see")
-   - Redundant context from other sections
-   - Standalone introductions or conclusions
-   - Filler text
+Previous Section: ${request.previousSection?.title || 'None'}
+${request.previousSection?.content ? `${request.previousSection.content.slice(-200)}...` : ''}
 
-EXISTING CONTENT (for context only, do not reference):
-${previousSection ? previousSection.content : ''}
-${nextSection ? nextSection.content : ''}
+Next Section: ${request.nextSection?.title || 'None'}
+${request.nextSection?.content ? `${request.nextSection.content.slice(0, 200)}...` : ''}
 
-Begin the content directly without preamble:`;
+REQUIREMENTS
+Purpose: ${request.objective}
+Key Points:
+${request.keyPoints?.map(point => `• ${point}`).join('\n')}
+Length: ${request.estimatedLength}
 
-      console.log("System Prompt:", systemPrompt);
-      console.log("User Prompt:", userPrompt);
+GUIDELINES
+1. Start directly with substance - no introductory phrases
+2. Each sentence must add value
+3. Use concrete examples and specific data
+4. Maintain flow with adjacent sections
+5. Focus on key points without deviation
+6. Avoid:
+   - Generic statements
+   - Redundant transitions
+   - Marketing fluff
+   - Obvious statements
+   - Passive voice
 
-      // Generate content with specified temperature
-      const contentResponse = await this.client.chat.completions.create({
+Begin content:`;
+
+      const response = await this.client.chat.completions.create({
         model: this.model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: temperature ?? 0.7, // Ensure fallback
+        temperature: request.temperature ?? 0.7,
       });
 
-      const generatedContent = contentResponse.choices[0].message.content || "";
+      const content = response.choices[0].message.content || "";
 
-      console.log('Generated Content:', generatedContent);
       // Enhanced evaluation prompt focusing on flow and integration
       const evaluationPrompt = `You are an expert content evaluator. Evaluate the given content on a scale of 1-100 based on:
 1. Integration with document flow (40 points)
@@ -492,23 +514,23 @@ Provide only a number as response, nothing else.`;
           { role: "system", content: evaluationPrompt },
           { 
             role: "user",
-            content: `Evaluate this content for the section "${sectionTitle}" within the document "${documentTitle}":
+            content: `Evaluate this content for the section "${request.sectionTitle}":
 
-${generatedContent}`
+${content}`
           }
         ],
         temperature: 0,
       });
 
       const strength = parseInt(evaluationResponse.choices[0].message.content || "0");
-
+      
       return {
-        content: generatedContent,
-        strength: strength
+        content,
+        strength
       };
 
     } catch (error) {
-      console.error('Error generating section with OpenAI:', error);
+      console.error('Error generating section:', error);
       throw error;
     }
   }
@@ -519,17 +541,15 @@ ${generatedContent}`
     references: string[] = [],
     dataSources: string[] = []
   ): Promise<string> {
-    // First, determine the document type using the orchestrator
     const documentType = await this.runAgentOrchestrator(title, purpose);
     
-    // Based on the type, generate the appropriate initial plan
     switch (documentType.type) {
       case "prfaq":
-        return this.generateInitialPRFAQOutline(title, documentType.description ?? title, references, dataSources);
+        return this.generatePRFAQPlan(title, documentType.description ?? title, references, dataSources);
       case "presentation":
         return this.generateInitialPresentationOutline(title, documentType.topic ?? title);
       case "generic":
-        return this.generateInitialGenericOutline(documentType.query ?? title);
+        return this.generateGenericPlan(documentType.query ?? title);
       default:
         throw new Error(`Unknown document type: ${documentType.type}`);
     }
@@ -734,7 +754,7 @@ Add sections named "Internal FAQs" and "External FAQs" before those sections. Th
         isEditing: false,
         isGenerating: false,
         selectedSources: [],
-        sourceOption: 'model',
+        sourceOption: 'all',
         revisions: [],
         strength: 0
       }));
@@ -747,7 +767,6 @@ Add sections named "Internal FAQs" and "External FAQs" before those sections. Th
   }
 
   private async generateInitialPresentationOutline(title: string, topic: string): Promise<string> {
-    // TODO: Implement presentation-specific outline generation
     return `# Presentation Outline for: ${title}\n## Topic: ${topic}`;
   }
 
@@ -857,7 +876,6 @@ Evaluate strictly according to the criteria provided. Return only a JSON object 
     try {
       const evaluation = JSON.parse(content) as EvaluationResult;
       this.validateEvaluation(evaluation);
-      console.log('Evaluation:', evaluation);
       return evaluation;
     } catch (error) {
       console.error('Failed to parse evaluation:', error);
@@ -894,48 +912,103 @@ Evaluate strictly according to the criteria provided. Return only a JSON object 
 
   public async improveSection(
     currentContent: string,
+    sectionTitle: string,
     sectionDescription: string,
     improvements: string[],
-    keyPoints: string[]
-  ): Promise<string> {
-    const systemPrompt = `You are an expert content improver. Your task is to enhance the given section content by applying relevant improvements while maintaining the original purpose and key points.
+    keyPoints: string[],
+    estimatedLength: string = 'medium',
+    relevantContext?: any[]
+  ): Promise<SectionGenerationResponse> {
+    try {
 
-Guidelines:
-1. Apply only the improvements that are relevant to this specific section
-2. Ensure all key points are still covered
-3. Maintain the original tone and style
-4. Keep the content concise and focused
-5. Preserve any technical accuracy and factual information
-6. Ensure the improved content aligns with the section's description`;
+      const systemPrompt = `You are a senior technical writer focusing on improving specific sections of a document. Your task is to enhance the given section while:
+      - Maintaining its original purpose and scope
+      - Addressing only relevant improvements
+      - Keeping the section's role in the larger document
+      - Adhering to specified length requirements`;
 
-    const userPrompt = `SECTION DESCRIPTION:
-${sectionDescription}
+      const contextStr = this.formatRelevantContext(relevantContext);
+      const userPrompt = `Improve the following content for section "${sectionTitle}":
 
-KEY POINTS TO COVER:
-${keyPoints.map(point => `- ${point}`).join('\n')}
+CONTEXT:
+${contextStr}
 
-SUGGESTED IMPROVEMENTS:
-${improvements.map(imp => `- ${imp}`).join('\n')}
+EXISTING CONTENT:
+${currentContent || 'No existing content'}
 
-CURRENT CONTENT:
-${currentContent}
+SECTION DESCRIPTION:
+${sectionDescription || 'No description provided'}
 
-Please improve this content by applying the relevant suggestions while ensuring all key points are covered. Return only the improved content without any explanations or metadata.`;
+LENGTH REQUIREMENT: ${estimatedLength}
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.3, // Lower temperature for more consistent improvements
-    });
+KEY POINTS TO MAINTAIN:
+${keyPoints?.map(point => `• ${point}`).join('\n') || 'No key points specified'}
 
-    const improvedContent = response.choices[0].message.content;
-    if (!improvedContent) {
-      throw new Error('No improved content received from AI');
+REQUIRED IMPROVEMENTS:
+${improvements.map(imp => `• ${imp}`).join('\n')}
+
+GUIDELINES:
+1. Strictly adhere to the specified length requirement (${estimatedLength})
+2. Maintain the original purpose while implementing improvements
+3. Ensure all key points are still covered
+4. Keep the content focused and well-structured
+5. Preserve technical accuracy
+6. Improve clarity and impact
+7. Address each improvement point specifically
+8. If you are not sure about the improvements, just return the current content
+
+Begin improved content:`;
+
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.3, // Lower temperature for more consistent improvements
+      });
+
+      const content = response.choices[0].message.content || "";
+
+      // Use the same evaluation logic as generateSection
+      const evaluationPrompt = `You are an expert content evaluator. Evaluate the given content on a scale of 1-100 based on:
+1. Integration with document flow (40 points)
+   - No redundant introduction/conclusion
+   - Natural continuation from previous section
+   - Smooth lead-in to next section
+2. Content quality (30 points)
+   - Appropriate depth
+   - Industry expertise
+   - Clear structure
+3. Writing style (30 points)
+   - Consistent tone
+   - Professional language
+   - Readability
+
+Provide only a number as response, nothing else.`;
+
+      const evaluationResponse = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: "system", content: evaluationPrompt },
+          { 
+            role: "user",
+            content: `Evaluate this improved content:\n\n${content}`
+          }
+        ],
+        temperature: 0,
+      });
+
+      const strength = parseInt(evaluationResponse.choices[0].message.content || "0");
+      
+      return {
+        content,
+        strength
+      };
+
+    } catch (error) {
+      console.error('Error improving section:', error);
+      throw error;
     }
-
-    return improvedContent;
   }
 }

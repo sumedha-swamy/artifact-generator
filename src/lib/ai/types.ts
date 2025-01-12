@@ -3,13 +3,14 @@ import { Section } from '@/app/lib/types';
 export type AIProviderType = 'openai' | 'anthropic' | 'bedrock';
 
 export interface AIProvider {
-  generateSection(
-    jsonString: string,
-    temperature: number,
-    estimatedLength: string
-  ): Promise<SectionGenerationResponse>;
-  generatePlan(title: string, purpose: string): Promise<Section[]>;
-  generateInitialPlan(title: string, purpose: string, references?: string[], dataSources?: string[]): Promise<string>;
+  generateSection(request: SectionGenerationRequest): Promise<SectionGenerationResponse>;
+  generatePlan(title: string, purpose: string, references?: string[], dataSources?: string[]): Promise<string>;
+  generateInitialPlan(
+    title: string,
+    purpose: string,
+    references?: string[],
+    dataSources?: string[]
+  ): Promise<string>;
   refinePlan(currentPlan: string, feedback: string): Promise<string>;
   finalizePlanToJson(finalPlan: string): Promise<Section[]>;
   evaluateDocument(
@@ -19,23 +20,53 @@ export interface AIProvider {
   ): Promise<EvaluationResult>;
   improveSection(
     currentContent: string,
+    sectionTitle: string,
     sectionDescription: string,
     improvements: string[],
-    keyPoints: string[]
+    keyPoints: string[],
+    estimatedLength?: string,
+    relevantContext?: any[]
+  ): Promise<SectionGenerationResponse>;
+  runAgentOrchestrator(
+    title: string, 
+    purpose: string
+  ): Promise<{ 
+    type: "prfaq" | "presentation" | "generic";
+    description?: string;
+  }>;
+  generatePRFAQPlan(
+    title: string,
+    productDescription: string,
+    selectedSources?: string[],
+    references?: string[],
+    dataSources?: string[]
   ): Promise<string>;
 }
 
 export interface SectionGenerationRequest {
   sectionTitle: string;
   sectionDescription: string;
-  content?: string;
-  objective?: string;
+  objective: string;
   keyPoints?: string[];
   estimatedLength: string;
-  targetAudience?: string;
-  otherSections: Array<{ title: string; content?: string }>;
-  temperature: number;
-  selectedSources?: string[];
+  temperature?: number;
+  documentType: 'PRFAQ' | 'Presentation' | 'Generic';
+  previousContent?: string;
+  previousSection?: {
+    title: string;
+    content: string;
+  };
+  nextSection?: {
+    title: string;
+    content: string;
+  };
+  relevantContext?: Array<{
+    content: string;
+    metadata: {
+      source_url: string;
+    };
+    score: number;
+  }>;
 }
 
 export interface SectionGenerationResponse {
