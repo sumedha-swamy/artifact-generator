@@ -1,6 +1,6 @@
-# AI-Powered Document Generator
+# AI-Powered Artifact Generator
 
-An intelligent document generation tool built with Next.js that helps create structured documents using AI assistance. The application supports multiple document types, collaborative planning, and context-aware content generation.
+An intelligent artifact generation tool built with Next.js that helps create structured documents using AI assistance. The application supports multiple document types, collaborative planning, and context-aware content generation.
 
 ## Features
 
