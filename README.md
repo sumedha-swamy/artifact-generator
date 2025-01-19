@@ -14,7 +14,7 @@ An intelligent artifact generation tool built with Next.js that helps create str
 
 ## Screenshot
 
-![AI Artifact Generator Interface generating and evaluating a PRFAQ](screenshot_1.png)
+![AI Artifact Generator Interface generating and evaluating a PRFAQ](Screenshot_1.png)
 
 ## Tech Stack
 
