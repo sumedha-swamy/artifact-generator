@@ -12,14 +12,18 @@ An intelligent artifact generation tool built with Next.js that helps create str
 - 🎨 Customizable section management
 - 📱 Responsive layout with resizable panels
 
+## Screenshot
+
+![AI Artifact Generator Interface generating and evaluating a PRFAQ](screenshot_1.png)
+
 ## Tech Stack
 
 - **Frontend**: Next.js 15.0, React, TypeScript
 - **Styling**: Tailwind CSS
-- **AI Integration**: OpenAI API, AWS Bedrock
+- **AI Integration**: OpenAI API, Amazon Bedrock
 - **Backend**: FastAPI (Python)
 - **Markdown**: React-Markdown with GFM support
-- **UI Components**: Radix UI primitives
+
 
 ## Getting Started
 
