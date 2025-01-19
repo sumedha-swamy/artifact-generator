@@ -187,9 +187,10 @@ IMPORTANT: DO NOT GENERATE ANY ACTUAL CONTENT. Instead, for each section:
 1. Describe in detail what should be included
 2. List key elements to be addressed
 3. Provide specific guidelines for content generation
-4. Note any special considerations
+4. Include a list of key points that should be addressed in the content. The key points must focus on the content of the document.
+5. Note any special considerations
 
-For example, instead of writing an actual executive quote, write:
+For example, instead of writing an actual executive quote, write something like this:
 "Executive Quote Section:
 - Should emphasize the strategic importance of [specific aspect]
 - Should be 1-2 sentences long
@@ -299,10 +300,8 @@ FAQs have no length restrictions.
 1. Start with the customer: Always focus on customer needs and benefits.
 2. Be specific: Use concrete examples and avoid vague statements.
 3. Keep it concise: Aim for clarity and brevity in all sections.
-4. Iterate: Refine the document based on feedback and new insights.
-5. Challenge assumptions: Use the document to identify and question key assumptions.
-6. Collaborate: Involve cross-functional teams in the creation process.
-7. Future-proof: Write as if the product has already launched, but consider future implications.
+4. Challenge assumptions: Use the document to identify and question key assumptions.
+5. Future-proof: Write as if the product has already launched, but consider future implications.
 
 
 Remember:
@@ -311,6 +310,7 @@ Remember:
 - Include guidance on tone, style, and approach
 - Note any dependencies between sections
 - Highlight areas where references/data sources should be incorporated
+- Dont get carried away with the URLs and domain names of the references/data sources. Focus on the content of the references/data sources.
 
 Provide your response as a clear, structured outline with detailed planning notes for each section.
 `;
@@ -592,7 +592,8 @@ IMPORTANT:
 1. Return ONLY the raw JSON - no markdown formatting, no \`\`\` blocks
 2. The JSON should be an object with a "sections" array
 3. Make the description thorough enough for an LLM to generate content later
-4. Ensure the JSON is valid and properly formatted
+4. Key points should be specific and detailed enough about the content for an LLM to generate content later. Key points must not exclusively focus on the structure of the document. The main focus should be on the content of the document.
+5. Ensure the JSON is valid and properly formatted
 
 Example format:
 {

@@ -58,6 +58,9 @@ export async function POST(request: Request) {
       apiKey: AI_API_KEY,
     });
 
+    console.log("AI_PROVIDER", AI_PROVIDER);
+    console.log("AI_API_KEY", AI_API_KEY);
+    console.log("payload", payload);
     // If it's a PRFAQ, use the specialized method
     const documentType = await provider.runAgentOrchestrator(title, purpose);
     if (documentType.type === "prfaq") {
